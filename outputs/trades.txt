@@ -1,0 +1,547 @@
+Strategy: top_bottom_k_from_factors_model
+MR cure method: shrinking_exposures
+Backtest period: 2023-01-05 to 2023-07-03
+Number of backtest dates: 123
+
+
+---------------     BACKTEST TRADES IN CHRONOLOGICAL ORDER     ---------------
+
+(first trade date: 2023-01-05; last trade date: 2023-06-30)
+
+
+shares traded on backtest date #1 (2023-01-05):
+
+AIZ     100
+APA    -100
+CEG    -100
+D       100
+ENPH   -100
+ETSY   -100
+FCX    -100
+FSLR   -100
+GNRC    100
+KMX     100
+LUMN    100
+NFLX   -100
+NWL     100
+RCL    -100
+SLB    -100
+STLD   -100
+STX     100
+SWK     100
+TSN     100
+VFC     100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #20 (2023-02-02):
+
+AIZ    -200
+ALGN    100
+APA     100
+BBWI    100
+CCL     100
+CEG     100
+CME    -100
+CZR     100
+D      -100
+ENPH    100
+ETSY    200
+FCX     100
+FSLR    200
+GNRC   -100
+HRL    -100
+KDP    -100
+KMX    -100
+LUMN   -100
+MRNA    100
+NFLX    100
+NVDA    100
+NWL    -100
+RCL     100
+SEDG    100
+SLB     100
+STLD    100
+STX    -100
+SWK    -100
+TSLA    100
+TSN    -100
+VFC    -100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #29 (2023-02-15):
+
+ALGN   -100
+BBWI   -100
+CCL    -100
+CHRW   -100
+CME     100
+CVS    -100
+CZR    -100
+D      -100
+EXR    -100
+HAL     100
+NFLX    100
+RCL     100
+RSG    -100
+SLB     100
+TSLA   -100
+TSN    -100
+UAL     100
+WM     -100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #52 (2023-03-21):
+
+AIZ     100
+BSX     -67
+CHRW    100
+CVS     100
+D       100
+ENPH     67
+EQT      67
+ETSY   -100
+EXR     100
+FSLR   -100
+GNRC     67
+HAL    -100
+HRL     100
+ILMN     67
+KDP     100
+KEY      67
+LMT     -67
+LNC      67
+LUMN     67
+MRNA   -100
+NFLX   -100
+NKE     -67
+NVDA   -100
+PM      -67
+RCL    -100
+ROST    -67
+RSG     100
+SCHW     67
+SEDG   -100
+SLB    -100
+TJX     -67
+TSLA     67
+TSN     100
+UAL    -100
+ULTA    -67
+V       -67
+WM      100
+YUM     -67
+ZBH     -67
+ZION     67
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #75 (2023-04-24):
+
+ALB     21
+APA     21
+AVGO   -21
+BKNG   -21
+BSX     67
+CDNS   -21
+CPRT   -21
+ENPH   -46
+EQT    -67
+FICO   -21
+GE     -21
+GNRC   -67
+HBAN    21
+ILMN   -67
+KEY    -46
+LMT     67
+LNC    -46
+LUMN   -67
+NCLH    21
+NKE     67
+NVR    -21
+PM      67
+ROST    67
+SCHW   -46
+TFC     21
+TJX     67
+TSLA   -67
+ULTA    46
+V       67
+WYNN   -21
+YUM     67
+ZBH     46
+ZION   -46
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #76 (2023-04-25):
+
+ALB      9
+APA      9
+AVGO    -9
+BKNG    -9
+CDNS    -9
+CPRT    -9
+DVN     30
+ENPH   -21
+FICO    -9
+GE      -9
+HBAN     9
+KEY      9
+LNC      9
+NCLH     9
+NVR     -9
+PHM    -30
+SCHW     9
+TFC      9
+ULTA    -9
+WYNN    -9
+ZBH     21
+ZION     9
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #77 (2023-04-26):
+
+ALB     49
+APA    -30
+AVGO   -49
+BKNG   -49
+BXP     79
+CDNS   -49
+CPRT    30
+DVN     49
+ENPH    79
+FICO   -49
+GE     -49
+HBAN    49
+KEY     49
+LNC     49
+MKTX   -79
+NCLH   -30
+NVDA   -79
+NVR     30
+PHM    -49
+SCHW    49
+TFC     49
+ULTA    30
+WST    -79
+WYNN   -49
+ZION    49
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #96 (2023-05-23):
+
+ALB     -79
+AVGO     79
+BKNG     79
+BXP     -79
+CDNS     79
+CFG     100
+CPB    -100
+DVN     -79
+ENPH     21
+FICO     79
+FSLR    100
+GE       79
+GIS    -100
+HBAN     21
+HSY    -100
+KEY      21
+KO     -100
+LNC      21
+LW     -100
+MCD    -100
+MDLZ   -100
+MKTX     79
+NVDA     79
+PEP    -100
+PG     -100
+PHM      79
+SCHW     21
+TFC      21
+USB     100
+WMT    -100
+WST      79
+WYNN     79
+ZION     21
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #98 (2023-05-25):
+
+CFG     -72
+CPB     100
+ENPH    -72
+FITB     28
+FSLR   -100
+GE      -28
+GIS     100
+HBAN    -72
+HSY      72
+KEY     -72
+KO      100
+LNC     -72
+LW       72
+MCD      72
+MDLZ     72
+NVR     -28
+PEP     100
+PG       72
+PHM     -28
+SCHW    -72
+TFC     -72
+USB     -72
+WMT      72
+WST     -28
+ZION    -72
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #99 (2023-05-26):
+
+CFG    -28
+CL     -87
+ENPH    59
+FITB   -28
+FSLR    87
+GE      28
+GIS    -87
+HBAN    59
+HSY    -59
+KEY     59
+KO     -87
+LNC     59
+LW     -59
+MCD    -59
+MDLZ   -59
+MPWR    87
+NVR     28
+PEP    -87
+PG     -59
+PHM     28
+SCHW    59
+TFC     59
+USB     59
+WMT    -59
+WST     28
+ZION    59
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #100 (2023-05-30):
+
+CFG     100
+CL       87
+ENPH     13
+FSLR     13
+GIS     -13
+HBAN     13
+HSY     -13
+KEY      13
+KO      -13
+LNC      13
+LW      -13
+MCD     -13
+MDLZ     87
+MPWR    -87
+PEP     -13
+PG      -13
+SCHW     13
+SJM    -100
+TFC      13
+USB      13
+WM     -100
+WMT     -13
+ZION     13
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #106 (2023-06-07):
+
+AAP      74
+ADP     -74
+ANET     74
+BMY     -74
+CFG    -100
+CVS     -74
+ENPH    -26
+EPAM     74
+FSLR    -26
+GD      -74
+GIS     100
+GNRC     74
+HBAN   -100
+HRL     -74
+HSY     100
+IBM     -74
+JNJ     -74
+KEY    -100
+KO      100
+LNC    -100
+LW      100
+MCD     100
+MPWR     74
+NOC     -74
+NVDA     74
+PEP     100
+PFE     -74
+PG      100
+SCHW   -100
+SJM     100
+TFC    -100
+TJX     -74
+USB    -100
+WBD      74
+WM      100
+WMT     100
+ZION    -26
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #109 (2023-06-12):
+
+AAP      26
+ADP      74
+ANET    -74
+BMY     -26
+CCL     100
+CL     -100
+CVS      74
+ENPH     26
+EPAM     26
+FSLR     26
+GD      -26
+GNRC    -74
+HRL      74
+IBM     -26
+JNJ     -26
+KEY     100
+KHC    -100
+KO     -100
+MPWR     26
+NOC     -26
+NVDA     26
+PFE      74
+PG     -100
+TJX     -26
+WBD      26
+ZION     26
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #110 (2023-06-13):
+
+ANET    100
+BMY     100
+CL      100
+CVS    -100
+DGX    -100
+EPAM   -100
+GL     -100
+HRL    -100
+KEY    -100
+KHC     100
+KO      100
+NSC    -100
+PFE    -100
+PG      100
+TJX     100
+TSLA    100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #111 (2023-06-14):
+
+AAP      -3
+ADP     -97
+ALGN     97
+ANET     -3
+CCL      -3
+CVS     100
+DGX       3
+ENPH   -100
+FSLR     -3
+GD        3
+GL        3
+GNRC     97
+HRL       3
+IBM       3
+JNJ       3
+MPWR     -3
+NOC       3
+NSC       3
+NVDA     -3
+PFE       3
+TSLA     -3
+WBD      -3
+ZION   -100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #119 (2023-06-27):
+
+AAP       3
+ADP      97
+ALGN    -97
+ANET      3
+CAG    -100
+CCL       3
+DGX      -3
+DTE    -100
+DUK    -100
+ENPH    100
+FSLR      3
+GD       -3
+GL       97
+GNRC      3
+HRL      -3
+IBM      -3
+JNJ      -3
+KHC    -100
+MPWR      3
+NOC      97
+NSC      97
+NVDA      3
+PFE      97
+PPL    -100
+TSLA      3
+WBD     -97
+ZION    100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #120 (2023-06-28):
+
+ANET   -100
+CAG     100
+CL     -100
+DGX     100
+DUK     100
+ED     -100
+EPAM    100
+GD      100
+HRL     100
+JNJ     100
+KEY     100
+KMB    -100
+KO     -100
+O      -100
+PG     -100
+TSLA   -100
+Name: shares_traded, dtype: int64
+--------------------------------------------------
+
+shares traded on backtest date #122 (2023-06-30):
+
+ANET    100
+IBM     100
+JNJ    -100
+KEY    -100
+KMB     100
+PEG    -100
+Name: shares_traded, dtype: int64
+--------------------------------------------------

@@ -1,0 +1,123 @@
+
+--------------------------------------------------------------------------------
+                                    STRATEGY                                    
+--------------------------------------------------------------------------------
+  strategy_name                                  top_bottom_k_from_factors_model
+  return_target_for_strategy                                               9.00%
+  inter_rebalance_periods_of_same_duration                                    no
+  return_target_for_inter_rebalance_period                                 0.25%
+  strategy_parameters:
+    top_k_bottom_k                                                            10
+    shares_per_ticker                                                        100
+    rolling_window_trading_days_for_momentum                                  92
+    buffer_trading_days_for_momentum                                          23
+    rolling_window_trading_days_for_volatility                                60
+    rolling_periods_for_factors_model_regression                               6
+
+--------------------------------------------------------------------------------
+                               BACKTEST DURATION                                
+--------------------------------------------------------------------------------
+  number_of_backtest_days                                                    123
+  first_backtest_date                                                 2023-01-05
+  last_backtest_date                                                  2023-07-03
+  cause_of_backtest_termination                   hit_return_target_for_strategy
+
+--------------------------------------------------------------------------------
+                                  BACKTEST P&L                                  
+--------------------------------------------------------------------------------
+  initial_equity                                                       99,938.00
+  final_equity                                                        109,394.48
+  unrealized_return_of_equity                                              9.46%
+
+--------------------------------------------------------------------------------
+                       PERFORMANCE BETWEEN BACKTEST DATES                       
+--------------------------------------------------------------------------------
+  number_of_backtest_dates                                                   123
+  avg_excess_return_between_backtest_dates                                 0.08%
+  std_of_excess_returns_between_backtest_dates                             1.96%
+  min_excess_return_between_backtest_dates                                -5.68%
+  max_excess_return_between_backtest_dates                                 5.54%
+
+--------------------------------------------------------------------------------
+                     PERFORMANCE PER INTER-REBALANCE PERIOD                     
+--------------------------------------------------------------------------------
+  number_of_periods                                                           18
+  periods_of_same_duration                                                    no
+  avg_period_excess_return                                                 0.42%
+  std_of_period_excess_return                                              3.11%
+  min_period_excess_return                                                -8.53%
+  max_period_excess_return                                                 5.21%
+
+--------------------------------------------------------------------------------
+                                   DRAWDOWNS                                    
+--------------------------------------------------------------------------------
+  drawdown of equity-excluding-margin-collateral:
+    min                                                                  -14.15%
+    max                                                                    0.00%
+    avg                                                                   -6.02%
+    std                                                                    4.11%
+
+--------------------------------------------------------------------------------
+                                    TRADING                                     
+--------------------------------------------------------------------------------
+  total_trading_fees_paid_in_backtest                                      30.35
+  turnover:
+    min                                                                   23.67%
+    max                                                                  211.88%
+    avg                                                                  112.36%
+    std                                                                   62.45%
+  max_pct_of_daily_market_volume_traded_for_a_ticker_during_backtest:
+    max_pct_of_daily_market_volume                                         0.12%
+    for_ticker                                                               NVR
+    at_backtest_date                                                  2023-05-26
+
+--------------------------------------------------------------------------------
+                              MARGIN REQUIREMENTS                               
+--------------------------------------------------------------------------------
+  maint_MR_violation_number_of_backtest_days                                   0
+  maint_MR_violation_frequency                                             0.00%
+  rebalance_MR_cure_number_of_backtest_days                                    8
+  rebalance_MR_cure_frequency                                             44.44%
+  cure_method                                                shrinking_exposures
+  shrink_factor_to_cure_an_MR_violation:
+    min                                                                   22.00%
+    max                                                                   98.00%
+    avg                                                                   61.40%
+    std                                                                   27.70%
+  collateral_per_cure                                                        N/A
+  total_collateral_posted                                                    N/A
+
+--------------------------------------------------------------------------------
+                                    ACCRUALS                                    
+--------------------------------------------------------------------------------
+  dividends_per_trading_date:
+    min                                                                  -196.50
+    max                                                                   100.00
+    avg                                                                    -7.45
+    std                                                                    34.35
+  financing_costs_per_trading_date:
+    min                                                                   -51.98
+    max                                                                    14.82
+    avg                                                                    -0.67
+    std                                                                    10.32
+
+--------------------------------------------------------------------------------
+                                    LEVERAGE                                    
+--------------------------------------------------------------------------------
+  gross_leverage:
+    min                                                                  150.10%
+    max                                                                  326.40%
+    avg                                                                  214.20%
+    std                                                                   36.50%
+  long_leverage:
+    min                                                                   11.70%
+    max                                                                  157.00%
+    avg                                                                   86.90%
+    std                                                                   37.00%
+  short_leverage:
+    min                                                                   39.00%
+    max                                                                  251.40%
+    avg                                                                  127.20%
+    std                                                                   42.00%
+
+--------------------------------------------------------------------------------

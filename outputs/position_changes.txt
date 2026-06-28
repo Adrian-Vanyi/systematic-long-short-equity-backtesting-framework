@@ -1,0 +1,492 @@
+Strategy: top_bottom_k_from_factors_model
+MR cure method: shrinking_exposures
+Backtest period: 2023-01-05 to 2023-07-03
+Number of backtest dates: 123
+
+
+---------------     CHRONOLOGICAL ORDER OF CHANGES IN POSITIONS DURING BACKTEST     ---------------
+
+
+shares in book on backtest date #1 (2023-01-05), at open:
+
+ticker
+A       0
+AAL     0
+AAP     0
+AAPL    0
+ABBV    0
+       ..
+YUM     0
+ZBH     0
+ZBRA    0
+ZION    0
+ZTS     0
+Length: 460, dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #1 (2023-01-05), at close:
+
+ticker
+AIZ     100
+APA    -100
+CEG    -100
+D       100
+ENPH   -100
+ETSY   -100
+FCX    -100
+FSLR   -100
+GNRC    100
+KMX     100
+LUMN    100
+NFLX   -100
+NWL     100
+RCL    -100
+SLB    -100
+STLD   -100
+STX     100
+SWK     100
+TSN     100
+VFC     100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #20 (2023-02-02), at close:
+
+ticker
+AIZ    -100
+ETSY    100
+FSLR    100
+ALGN    100
+BBWI    100
+CCL     100
+CME    -100
+CZR     100
+HRL    -100
+KDP    -100
+MRNA    100
+NVDA    100
+SEDG    100
+TSLA    100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #29 (2023-02-15), at close:
+
+ticker
+AIZ    -100
+ETSY    100
+FSLR    100
+HRL    -100
+KDP    -100
+MRNA    100
+NVDA    100
+SEDG    100
+CHRW   -100
+CVS    -100
+D      -100
+EXR    -100
+HAL     100
+NFLX    100
+RCL     100
+RSG    -100
+SLB     100
+TSN    -100
+UAL     100
+WM     -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #52 (2023-03-21), at close:
+
+ticker
+BSX    -67
+ENPH    67
+EQT     67
+GNRC    67
+ILMN    67
+KEY     67
+LMT    -67
+LNC     67
+LUMN    67
+NKE    -67
+PM     -67
+ROST   -67
+SCHW    67
+TJX    -67
+TSLA    67
+ULTA   -67
+V      -67
+YUM    -67
+ZBH    -67
+ZION    67
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #75 (2023-04-24), at close:
+
+ticker
+ENPH    21
+KEY     21
+LNC     21
+SCHW    21
+ULTA   -21
+ZBH    -21
+ZION    21
+ALB     21
+APA     21
+AVGO   -21
+BKNG   -21
+CDNS   -21
+CPRT   -21
+FICO   -21
+GE     -21
+HBAN    21
+NCLH    21
+NVR    -21
+TFC     21
+WYNN   -21
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #76 (2023-04-25), at close:
+
+ticker
+KEY     30
+LNC     30
+SCHW    30
+ULTA   -30
+ZION    30
+ALB     30
+APA     30
+AVGO   -30
+BKNG   -30
+CDNS   -30
+CPRT   -30
+FICO   -30
+GE     -30
+HBAN    30
+NCLH    30
+NVR    -30
+TFC     30
+WYNN   -30
+DVN     30
+PHM    -30
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #77 (2023-04-26), at close:
+
+ticker
+KEY     79
+LNC     79
+SCHW    79
+ZION    79
+ALB     79
+AVGO   -79
+BKNG   -79
+CDNS   -79
+FICO   -79
+GE     -79
+HBAN    79
+TFC     79
+WYNN   -79
+DVN     79
+PHM    -79
+BXP     79
+ENPH    79
+MKTX   -79
+NVDA   -79
+WST    -79
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #96 (2023-05-23), at close:
+
+ticker
+KEY     100
+LNC     100
+SCHW    100
+ZION    100
+HBAN    100
+TFC     100
+ENPH    100
+CFG     100
+CPB    -100
+FSLR    100
+GIS    -100
+HSY    -100
+KO     -100
+LW     -100
+MCD    -100
+MDLZ   -100
+PEP    -100
+PG     -100
+USB     100
+WMT    -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #98 (2023-05-25), at close:
+
+ticker
+KEY     28
+LNC     28
+SCHW    28
+ZION    28
+HBAN    28
+TFC     28
+ENPH    28
+CFG     28
+HSY    -28
+LW     -28
+MCD    -28
+MDLZ   -28
+PG     -28
+USB     28
+WMT    -28
+FITB    28
+GE     -28
+NVR    -28
+PHM    -28
+WST    -28
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #99 (2023-05-26), at close:
+
+ticker
+KEY     87
+LNC     87
+SCHW    87
+ZION    87
+HBAN    87
+TFC     87
+ENPH    87
+HSY    -87
+LW     -87
+MCD    -87
+MDLZ   -87
+PG     -87
+USB     87
+WMT    -87
+CL     -87
+FSLR    87
+GIS    -87
+KO     -87
+MPWR    87
+PEP    -87
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #100 (2023-05-30), at close:
+
+ticker
+KEY     100
+LNC     100
+SCHW    100
+ZION    100
+HBAN    100
+TFC     100
+ENPH    100
+HSY    -100
+LW     -100
+MCD    -100
+PG     -100
+USB     100
+WMT    -100
+FSLR    100
+GIS    -100
+KO     -100
+PEP    -100
+CFG     100
+SJM    -100
+WM     -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #106 (2023-06-07), at close:
+
+ticker
+ZION    74
+ENPH    74
+FSLR    74
+AAP     74
+ADP    -74
+ANET    74
+BMY    -74
+CVS    -74
+EPAM    74
+GD     -74
+GNRC    74
+HRL    -74
+IBM    -74
+JNJ    -74
+MPWR    74
+NOC    -74
+NVDA    74
+PFE    -74
+TJX    -74
+WBD     74
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #109 (2023-06-12), at close:
+
+ticker
+ZION    100
+ENPH    100
+FSLR    100
+AAP     100
+BMY    -100
+EPAM    100
+GD     -100
+IBM    -100
+JNJ    -100
+MPWR    100
+NOC    -100
+NVDA    100
+TJX    -100
+WBD     100
+CCL     100
+CL     -100
+KEY     100
+KHC    -100
+KO     -100
+PG     -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #110 (2023-06-13), at close:
+
+ticker
+ZION    100
+ENPH    100
+FSLR    100
+AAP     100
+GD     -100
+IBM    -100
+JNJ    -100
+MPWR    100
+NOC    -100
+NVDA    100
+WBD     100
+CCL     100
+ANET    100
+CVS    -100
+DGX    -100
+GL     -100
+HRL    -100
+NSC    -100
+PFE    -100
+TSLA    100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #111 (2023-06-14), at close:
+
+ticker
+FSLR    97
+AAP     97
+GD     -97
+IBM    -97
+JNJ    -97
+MPWR    97
+NOC    -97
+NVDA    97
+WBD     97
+CCL     97
+ANET    97
+DGX    -97
+GL     -97
+HRL    -97
+NSC    -97
+PFE    -97
+TSLA    97
+ADP    -97
+ALGN    97
+GNRC    97
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #119 (2023-06-27), at close:
+
+ticker
+FSLR    100
+AAP     100
+GD     -100
+IBM    -100
+JNJ    -100
+MPWR    100
+NVDA    100
+CCL     100
+ANET    100
+DGX    -100
+HRL    -100
+TSLA    100
+GNRC    100
+CAG    -100
+DTE    -100
+DUK    -100
+ENPH    100
+KHC    -100
+PPL    -100
+ZION    100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #120 (2023-06-28), at close:
+
+ticker
+FSLR    100
+AAP     100
+IBM    -100
+MPWR    100
+NVDA    100
+CCL     100
+GNRC    100
+DTE    -100
+ENPH    100
+KHC    -100
+PPL    -100
+ZION    100
+CL     -100
+ED     -100
+EPAM    100
+KEY     100
+KMB    -100
+KO     -100
+O      -100
+PG     -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on backtest date #122 (2023-06-30), at close:
+
+ticker
+FSLR    100
+AAP     100
+MPWR    100
+NVDA    100
+CCL     100
+GNRC    100
+DTE    -100
+ENPH    100
+KHC    -100
+PPL    -100
+ZION    100
+CL     -100
+ED     -100
+EPAM    100
+KO     -100
+O      -100
+PG     -100
+ANET    100
+JNJ    -100
+PEG    -100
+dtype: int64
+--------------------------------------------------
+
+shares in book on the last backtest date (2023-07-03), at the close:
+
+(unchanged from the last logged change above)
+--------------------------------------------------
