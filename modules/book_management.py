@@ -577,21 +577,49 @@ def update_from_all_trades(
     then prunes zero positions and empty short-lot deques and re-marks
     LMV/SMV using post-trade prices (defaulting to pre-trade prices).
 
-    Returns the updated snapshot and an updated `trades_log` (the caller's dict, 
+    Returns the updated snapshot and an updated `trades_log` (the caller's dict,
     mutated in place by adding an entry for `date`), which is also returned.
+
+    The entry for a date ACCUMULATES across calls, because a date may carry
+    both a maintenance-MR cure and a rebalance (§2.7, steps 4 and 7). Its
+    fields are:
+
+    * `trading_fee`, `execution_cost`, `gross_notional_traded`
+        summed over the date's batches. `execution_cost` is the half-spread
+        + slippage wedge embedded in the execution price (§2.5.2), which is
+        booked in no cash flow and would otherwise be invisible.
+    * `turnover`
+        sum of the per-batch turnovers, each relative to that batch's own
+        pre-trade gross exposure.
+    * `shares_traded`
+        the date's NET share delta per ticker. A ticker traded in both
+        batches nets out here; a ticker whose net is zero is retained as a
+        zero row, which is what marks it as having round-tripped.
+    * `shares_traded_batches`
+        the per-batch deltas, in execution order, so nothing is lost.
+    * `pct_of_market_volume_traded`
+        per-ticker percentage of the day's market volume, summed over
+        batches.
     """
     snap = copy.deepcopy(current_snapshot)
 
     if shares_to_trade.empty:
         return snap, trades_log
 
-    trades_log[date] = {
-        "pct_of_market_volume_traded": pd.Series(
-            name = "pct_of_market_volume_traded", dtype = float
-        ),
-        "trading_fee": 0.0,
-        "shares_traded": shares_to_trade.rename("shares_traded")
-    }
+    entry = trades_log.setdefault(
+        date,
+        {
+            "pct_of_market_volume_traded": pd.Series(
+                name = "pct_of_market_volume_traded", dtype = float
+            ),
+            "trading_fee": 0.0,
+            "execution_cost": 0.0,
+            "gross_notional_traded": 0.0,
+            "turnover": 0.0,
+            "shares_traded": pd.Series(dtype = int, name = "shares_traded"),
+            "shares_traded_batches": []
+        }
+    )
 
     prices_today_pre = prices_pre_trade.xs(date, level=0)
     volumes_today = market_volume.xs(date, level=0)
@@ -599,6 +627,10 @@ def update_from_all_trades(
 
     gross_exposure_pre_trade = snap.LMV + snap.SMV
     total_trading_fees = 0.0
+    total_execution_cost = 0.0
+    pct_volume_this_batch = pd.Series(
+        name = "pct_of_market_volume_traded", dtype = float
+    )
 
     for ticker, qty_traded in shares_to_trade.items():
         if qty_traded == 0:
@@ -626,6 +658,12 @@ def update_from_all_trades(
 
         total_trading_fees += effect.fee
 
+        total_execution_cost += (
+            abs(int(qty_traded))
+            * price_pre_trade
+            * ((full_spread_bps / 2) + slippage_bps) / 1e4
+        )
+
         volume = float(volumes_today.at[ticker])
         if volume == 0:
             logger.warning(
@@ -633,22 +671,40 @@ def update_from_all_trades(
                 "set to NaN for this trade)",
                 ticker, date.strftime("%Y-%m-%d"),
             )
-            trades_log[date]["pct_of_market_volume_traded"].loc[ticker] = float("nan")
+            pct_volume_this_batch.loc[ticker] = float("nan")
         else:
-            trades_log[date]["pct_of_market_volume_traded"].loc[ticker] = round(
+            pct_volume_this_batch.loc[ticker] = round(
                 (abs(qty_traded) / volume) * 100, 5
             )
 
-    trades_log[date]["trading_fee"] = total_trading_fees
+    entry["trading_fee"] += total_trading_fees
+    entry["execution_cost"] += total_execution_cost
 
-    # compute turnover
-    gross_value_traded = (shares_to_trade.abs() * prices_today_pre).sum(skipna=True)
+    gross_value_traded = float(
+        (shares_to_trade.abs() * prices_today_pre).sum(skipna=True)
+    )
+    entry["gross_notional_traded"] += gross_value_traded
+
+    # Turnover is per batch, each relative to its own pre-trade gross exposure;
+    # the date's turnover is their sum.
     if gross_exposure_pre_trade > 0:
-        trades_log[date]["turnover"] = round(
-            float(gross_value_traded / gross_exposure_pre_trade), 4
-        )
+        batch_turnover = round(gross_value_traded / gross_exposure_pre_trade, 4)
     else:
-        trades_log[date]["turnover"] = float("nan")
+        batch_turnover = float("nan")
+    entry["turnover"] = round(entry["turnover"] + batch_turnover, 4)
+
+    entry["shares_traded"] = (
+        entry["shares_traded"]
+        .add(shares_to_trade, fill_value=0)
+        .astype(int)
+        .rename("shares_traded")
+    )
+    entry["shares_traded_batches"].append(shares_to_trade.rename("shares_traded"))
+    entry["pct_of_market_volume_traded"] = (
+        entry["pct_of_market_volume_traded"]
+        .add(pct_volume_this_batch, fill_value=0)
+        .rename("pct_of_market_volume_traded")
+    )
 
     # Prune zero positions and empty short-lot deques
     snap.shares = snap.shares[snap.shares != 0].astype("int64")

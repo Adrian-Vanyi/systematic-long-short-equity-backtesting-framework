@@ -1,5 +1,5 @@
 """
-Utilities for aggregating period returns.
+Utilities for aggregating period returns:
 
 - compounds daily returns into inter-rebalance period returns
 - computes per-ticker and market period excess returns,

@@ -14,7 +14,8 @@ Two distinct margin requirements:
 When the rebalance MR (or maintenance MR) exceeds equity, the
 portfolio can be uniformly shrunk via a scaling factor `alpha` (value in [0, 1])
 applied to all positions. Function `compute_shrinking_factor` finds the
-largest feasible `alpha` via bisection (the largest feasible factor shrinks the least, as it is closer to 1 than any other feasible factor).
+largest feasible `alpha` via bisection (the largest feasible factor shrinks the least,
+as it is closer to 1 than any other feasible factor).
 
 Public API
 ----------

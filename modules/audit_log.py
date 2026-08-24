@@ -126,6 +126,19 @@ def _lots_equal(
 # Public API
 # ---------------------------------------------------------------------------
 
+def _lots_for_display(lots: dict[str, deque]) -> dict[str, deque]:
+    """Round lot prices to 2dp for the log.
+
+    The ledger stores lots at full precision; rounding belongs here, at the
+    boundary where the values are rendered, rather than in the stored
+    snapshot (see `book_management.round_snapshot_for_display`).
+    """
+    return {
+        ticker: deque((n, round(price, 2)) for n, price in lot_queue)
+        for ticker, lot_queue in lots.items()
+    }
+
+
 def log_short_proceeds_changes(
     filepath: str | Path,
     backtest_results: BacktestResults
@@ -140,7 +153,7 @@ def log_short_proceeds_changes(
                 f"short-proceeds lots on backtest date #{i} "
                 f"({date.strftime('%Y-%m-%d')}), at {moment}:"
             )
-            _write_log_entry(f, label, value)
+            _write_log_entry(f, label, _lots_for_display(value))
 
 
 def log_trades(

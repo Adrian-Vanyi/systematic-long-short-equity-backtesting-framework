@@ -4,6 +4,7 @@ Public API
 ----------
 * class `BacktestKPIs`
         dataclass holding all KPIs sections and the returns time series
+        (its method `plot_rolling_beta_vs_market` plots the rolling market beta)
 
 * function `compute_backtest_kpis(...)` 
         build a `BacktestKPIs` from a `BacktestResults` object
@@ -20,28 +21,35 @@ Public API
 * function `compute_drawdowns(...)`
         equity drawdown time-series (used by plotting)
 
+* function `compute_pnl_decomposition(...)`
+        daily equity P&L decomposition (§2.6.6), asserting the identity closes
+
+* function `compute_market_exposure(...)`
+        ex-post regression of equity excess returns on market excess returns
+
 * function `build_book_ledger_across_dates(...)`
         build the tabular view of the book values across all backtest dates
 
 * function `show_book(...)`
         print formatted tabular view of book across all backtest dates in a notebook cell
-
 """
 
 from __future__ import annotations
 import logging
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from pathlib import Path
 
 from modules import period_returns as pr
 from modules.backtest import (
-        BacktestResults,
-        EVENT_MTM_MR_CURE,                             
-        EVENT_REBALANCE_MR_CURE_SHRINK,
-        EVENT_REBALANCE_MR_CURE_COLLATERAL
+    BacktestResults,
+    EVENT_MTM_MR_CURE,
+    EVENT_REBALANCE_MR_CURE_SHRINK,
+    EVENT_REBALANCE_MR_CURE_COLLATERAL
 )
 from modules.book_management import Book
 from modules.strategies import BaseStrategy
@@ -50,9 +58,25 @@ from modules.strategies import BaseStrategy
 logger = logging.getLogger(__name__)
 
 
+# Minimum number of aligned observations required to run the market-exposure
+# regression. Used in `compute_market_exposure`
+_MIN_OBS_FOR_MARKET_EXPOSURE = 30
+
+# Per-date tolerance for the §2.6.6 daily P&L identity, in dollars. Used in `compute_pnl_decomposition`
+_PNL_IDENTITY_TOLERANCE_PER_DAY = 1e-6
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _safe_round(val, decimals: int):
+    if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
+        return None
+    if val is None:
+        return None
+    return round(float(val), decimals)
+
 
 def _summary_stats(values, decimals: int = 3) -> dict:
     """Min/max/avg/std for a list of floats."""
@@ -67,6 +91,23 @@ def _summary_stats(values, decimals: int = 3) -> dict:
         "avg": round(float(np.mean(valid)), decimals),
         "std": round(std, decimals) if std is not None else None,
     }
+
+
+def _align_index(obj: pd.Series) -> pd.Series:
+    """Coerce to a tz-naive, nanosecond-resolution, normalised DatetimeIndex.
+
+    Series reaching the market-exposure regression come from different
+    sources (the backtest book, a parquet price panel, a downloaded ETF
+    series) and may carry different datetime resolutions or a time
+    component. Normalising all of them here makes the subsequent inner
+    join independent of cross-resolution alignment behaviour.
+    """
+    out = obj.copy()
+    idx = pd.to_datetime(out.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    out.index = idx.as_unit("ns").normalize()
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -146,9 +187,8 @@ def _pnl_section(
     book_at_date: dict[pd.Timestamp, Book],
     backtest_dates: list[pd.Timestamp]
 ) -> dict:
-    """P&L section."""
     first, last = backtest_dates[0], backtest_dates[-1]
-    initial_eq = book_at_date[first].close.equity_excluding_margin_collateral
+    initial_eq = book_at_date[first].open.equity_excluding_margin_collateral
     final_eq = book_at_date[last].close.equity_excluding_margin_collateral
     eq_return = final_eq / initial_eq - 1
     return {
@@ -167,10 +207,10 @@ def _performance_between_backtest_dates_section(
     """
     eq_at_backtest_dates = pd.Series(
         {
-            date : book.close.equity_excluding_margin_collateral
+            date: book.close.equity_excluding_margin_collateral
             for date, book in book_at_date.items()
         }
-    )
+    ).sort_index()
     return_since_prev = eq_at_backtest_dates.pct_change(fill_method=None)
     rf_aligned = rf_daily_returns.reindex(backtest_dates)
     excess_return = (return_since_prev - rf_aligned).dropna()
@@ -181,8 +221,8 @@ def _performance_between_backtest_dates_section(
             "equity_excess_return_since_previous_backtest_date": excess_return,
         }
     )
-    df.index = df.index.strftime("%Y-%m-%d")
-    df.index.name = "backtest dates"
+
+    df.index.name = "backtest_dates"
 
     avg = excess_return.mean() if not excess_return.empty else float("nan")
     std = excess_return.std(ddof=1) if len(excess_return) > 1 else float("nan")
@@ -218,7 +258,8 @@ def _period_performance_section(
     period_eq_return = eq_at_period_ends.pct_change(fill_method=None)
 
     end_dates = period_eq_return.index
-    period_rf_return = pr.compound_daily_returns_into_periods(end_dates, rf_daily_returns)
+    period_rf_return = pr.compound_daily_returns_into_periods(
+        end_dates, rf_daily_returns)
     period_excess = period_eq_return - period_rf_return
 
     df = pd.DataFrame(
@@ -228,14 +269,12 @@ def _period_performance_section(
             "previous_period_equity_excess_returns": period_excess,
         }
     )
-    df.index = df.index.strftime("%Y-%m-%d")
     df.index.name = "rebalance dates (except last date)"
 
     valid_excess = period_excess.dropna()
     n = len(valid_excess)
     avg = valid_excess.mean() if n > 0 else float("nan")
     std = valid_excess.std(ddof=1) if n > 1 else float("nan")
-
 
     section = {
         "number_of_periods": n,
@@ -249,18 +288,11 @@ def _period_performance_section(
     return section, df
 
 
-def _safe_round(val, decimals: int):
-    if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
-        return None
-    if val is None:
-        return None
-    return round(float(val), decimals)
-
-
 def _trading_section(trades_log: dict) -> dict:
     max_pct_volume: float = 0.
-    ticker_with_max_pct_volume:str = ""
-    date_of_max_pct_volume:pd.Timestamp = list(trades_log.keys())[0] # fist trading date 
+    ticker_with_max_pct_volume: str = ""
+    date_of_max_pct_volume: pd.Timestamp = list(
+        trades_log.keys())[0]  # fist trading date
     for date, log in trades_log.items():
         pct_of_market_volume_traded = log['pct_of_market_volume_traded']
         ticker_max = pct_of_market_volume_traded.idxmax()
@@ -272,11 +304,13 @@ def _trading_section(trades_log: dict) -> dict:
             ticker_with_max_pct_volume = ticker_max
     return {
         "total_trading_fees_paid_in_backtest": round(sum(v["trading_fee"] for v in trades_log.values()), 2),
+        "total_execution_cost_paid_in_backtest": round(sum(v["execution_cost"] for v in trades_log.values()), 2),
+        "total_gross_notional_traded_in_backtest": round(sum(v["gross_notional_traded"] for v in trades_log.values()), 2),
         "turnover": _summary_stats([v["turnover"] for v in trades_log.values()], decimals=4),
-        "max_pct_of_daily_market_volume_traded_for_a_ticker_during_backtest" : {'max_pct_of_daily_market_volume': max_pct_volume,
-                                                                 'for_ticker' : ticker_with_max_pct_volume,
-                                                                'at_backtest_date' : date_of_max_pct_volume.strftime("%Y-%m-%d")
-                                                                 }
+        "max_pct_of_daily_market_volume_traded_for_a_ticker_during_backtest": {'max_pct_of_daily_market_volume': max_pct_volume,
+                                                                               'for_ticker': ticker_with_max_pct_volume,
+                                                                               'at_backtest_date': date_of_max_pct_volume.strftime("%Y-%m-%d")
+                                                                               }
     }
 
 
@@ -288,7 +322,8 @@ def _margin_section(
     shrink_factors: dict,
     posted_collateral: dict,
 ) -> dict:
-    maint_freq, maint_n, reb_freq, reb_n = _mr_violation_stats(backtest_dates, date_events, rebalance_dates)
+    maint_freq, maint_n, reb_freq, reb_n = _mr_violation_stats(
+        backtest_dates, date_events, rebalance_dates)
     return {
         "maint_MR_violation_number_of_backtest_days": maint_n,
         "maint_MR_violation_frequency": round(maint_freq, 4),
@@ -324,6 +359,303 @@ def _leverage_section(book_at_date: dict[pd.Timestamp, Book]) -> dict:
     }
 
 
+def compute_pnl_decomposition(
+    backtest_results: BacktestResults,
+    close_prices: pd.Series,
+    tolerance_per_day: float = _PNL_IDENTITY_TOLERANCE_PER_DAY,
+) -> pd.DataFrame:
+    """Daily equity P&L decomposition, per the §2.6.6 identity.
+
+    Parameters
+    ----------
+    backtest_results
+        Output of `run_backtest`.
+    close_prices
+        Close prices indexed by (date, ticker).
+    tolerance_per_day
+        Maximum tolerated absolute daily residual, in dollars.
+
+    Returns
+    -------
+    pd.DataFrame
+        Indexed by backtest date, with one column per P&L stream plus
+        `equity_change`, `identity_residual`, and `traded`.
+
+    Raises
+    ------
+    AssertionError
+        If any day's residual exceeds `tolerance_per_day`.
+    """
+    book_at_date = backtest_results.book_at_date
+    dates = sorted(book_at_date.keys())
+    trades_log = backtest_results.trades_log
+    dividends = backtest_results.equity_accruals_from_dividends
+    financing = backtest_results.equity_accruals_from_financing_costs
+    collateral = backtest_results.posted_collateral_at_MR_violation_cures
+
+    def costs_at(date: pd.Timestamp) -> tuple[float, float]:
+        log = trades_log.get(date)
+        if log is None:
+            return 0.0, 0.0
+        return float(log["trading_fee"]), float(log["execution_cost"])
+
+    records = []
+    for i, date in enumerate(dates):
+        trading_fees, execution_cost = costs_at(date)
+
+        if i == 0:
+            # Equity starts at the opening cash and ends the day at the close of the updated book
+            price_pnl = 0.0
+            equity_change = (
+                book_at_date[date].close.equity
+                - book_at_date[date].open.equity
+            )
+        else:
+            prev_date = dates[i - 1]
+            shares_held = book_at_date[prev_date].close.shares
+            prices_prev = close_prices.xs(
+                prev_date, level=0).reindex(shares_held.index)
+            prices_now = close_prices.xs(
+                date, level=0).reindex(shares_held.index)
+            price_pnl = float((shares_held * (prices_now - prices_prev)).sum())
+            equity_change = (
+                book_at_date[date].close.equity
+                - book_at_date[prev_date].close.equity
+            )
+
+        dividend_pnl = float(dividends.get(date, 0.0))
+        financing_pnl = float(financing.get(date, 0.0))
+        posted = float(collateral.get(date, 0.0))
+
+        explained = (
+            price_pnl + dividend_pnl + financing_pnl
+            - trading_fees - execution_cost + posted
+        )
+        records.append({
+            "price_pnl": price_pnl,
+            "dividend_pnl": dividend_pnl,
+            "financing_pnl": financing_pnl,
+            "trading_fees": -trading_fees,
+            "execution_costs": -execution_cost,
+            "posted_collateral": posted,
+            "equity_change": equity_change,
+            "identity_residual": equity_change - explained,
+            "traded": date in trades_log,
+        })
+
+    df = pd.DataFrame(records, index=pd.DatetimeIndex(dates, name="date"))
+
+    breaches = df.index[df["identity_residual"].abs() > tolerance_per_day]
+    if len(breaches):
+        detail = ", ".join(
+            f"{d:%Y-%m-%d}: ${df.at[d, 'identity_residual']:,.4f}"
+            for d in breaches[:5]
+        )
+        raise AssertionError(
+            f"daily P&L identity failed on {len(breaches)} of {len(df)} date(s) "
+            f"at a tolerance of ${tolerance_per_day:.1e}: {detail}"
+            + (" ..." if len(breaches) > 5 else "")
+            + ". A residual above the rounding tolerance means a P&L stream is "
+            "missing from the identity or is being double-counted."
+        )
+    return df
+
+
+def _pnl_decomposition_section(
+    decomposition: pd.DataFrame,
+    initial_equity: float,
+    tolerance_per_day: float,
+) -> dict:
+    """Cumulative P&L streams, in dollars and as a share of initial equity."""
+    streams = [
+        "price_pnl", "dividend_pnl", "financing_pnl",
+        "trading_fees", "execution_costs", "posted_collateral",
+    ]
+    totals = {name: float(decomposition[name].sum()) for name in streams}
+    residual = decomposition["identity_residual"]
+
+    return {
+        "cumulative_pnl_in_dollars": {
+            **{name: round(value, 2) for name, value in totals.items()},
+            "total_equity_change": round(float(decomposition["equity_change"].sum()), 2),
+        },
+        "cumulative_pnl_as_pct_of_initial_equity": {
+            **{
+                name: (value / initial_equity if initial_equity else None)
+                for name, value in totals.items()
+            },
+            "total_equity_change": (
+                float(decomposition["equity_change"].sum()) / initial_equity
+                if initial_equity else None
+            ),
+        },
+        "identity_check": {
+            "number_of_dates_tested": len(decomposition),
+            # Not rounded: the residual is float-noise scale and rounding it
+            # to a fixed number of decimals would report it as zero.
+            "max_absolute_daily_residual": float(residual.abs().max()),
+            "tolerance_per_day": tolerance_per_day,
+            "number_of_dates_above_tolerance": int(
+                (residual.abs() > tolerance_per_day).sum()
+            ),
+        },
+    }
+
+
+def _compound_annualize(daily_return: float) -> float:
+    """Annualise a SIMPLE daily return by compounding."""
+    return (1.0 + daily_return) ** 252 - 1.0
+
+
+def _rolling_beta_with_standard_errors(
+    df: pd.DataFrame, window: int, hac_lags: int
+) -> tuple[pd.Series, pd.Series]:
+    """Rolling OLS beta and its HAC standard error, one fit per window."""
+    lags = min(hac_lags, max(1, window // 10))
+    betas, errors, dates = [], [], []
+    for end in range(window, len(df) + 1):
+        block = df.iloc[end - window:end]
+        fit = sm.OLS(
+            block["equity_excess"], sm.add_constant(block[["market_excess"]])
+        ).fit(cov_type="HAC", cov_kwds={"maxlags": lags})
+        betas.append(fit.params["market_excess"])
+        errors.append(fit.bse["market_excess"])
+        dates.append(block.index[-1])
+
+    idx = pd.DatetimeIndex(dates, name="date")
+    return (
+        pd.Series(betas, index=idx, name="rolling_beta_vs_market"),
+        pd.Series(errors, index=idx, name="rolling_beta_standard_error"),
+    )
+
+
+def compute_market_exposure(
+    equity_excess_returns: pd.Series,
+    spy_daily_returns: pd.Series,
+    rf_daily_returns: pd.Series,
+    book_at_date: dict[pd.Timestamp, Book] | None = None,
+    hac_lags: int = 5,
+    rolling_window: int = 60,
+) -> tuple[dict, pd.Series, pd.Series]:
+    """Ex-post market exposure of the realised equity curve.
+
+    OLS of daily equity excess returns on market (SPY) excess returns,
+    with Newey-West (HAC) standard errors, plus a rolling-window beta.
+    The market proxy must be a total-return series (dividend-adjusted
+    close).
+
+    (`book_at_date` is optional so that the regression can be recomputed offline from a persisted equity curve).
+
+    Returns
+    -------
+    (section_dict, rolling_beta_series)
+    """
+    if book_at_date is None:
+        avg_net = None
+    else:
+        net_exposure = [
+            book.close.long_leverage - book.close.short_leverage
+            for book in book_at_date.values()
+            if book.close.equity != 0
+        ]
+        avg_net = float(np.mean(net_exposure)) if net_exposure else None
+
+    df = pd.concat(
+        {
+            "equity_excess": _align_index(equity_excess_returns),
+            "spy": _align_index(spy_daily_returns),
+            "rf": _align_index(rf_daily_returns),
+        },
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if len(df) < _MIN_OBS_FOR_MARKET_EXPOSURE:
+        logger.warning(
+            "market exposure regression skipped: only %d aligned observations "
+            "(minimum %d). Check index alignment between the KPI returns frame, "
+            "the market proxy series, and the risk-free series.",
+            len(df), _MIN_OBS_FOR_MARKET_EXPOSURE,
+        )
+        section = {
+            "n_observations": len(df),
+            "null_hypothesis_for_t_and_p": "alpha = 0 and beta = 0",
+            "p_value_reference_distribution": "standard normal (asymptotic)",
+            "beta": None,
+            "hac_standard_error_beta": None,
+            "classical_standard_error_beta": None,
+            "t_stat_beta_hac": None,
+            "p_value_beta_two_sided": None,
+            "beta_95pct_confidence_interval_hac": {"lower": None, "upper": None},
+            "alpha_daily": None,
+            "hac_standard_error_alpha_daily": None,
+            "classical_standard_error_alpha_daily": None,
+            "t_stat_alpha_hac": None,
+            "p_value_alpha_two_sided": None,
+            "alpha_annualization_convention": "compounded: (1+alpha_daily)^252 - 1",
+            "alpha_annualized": None,
+            "alpha_annualized_95pct_confidence_interval_hac": {
+                "lower": None, "upper": None,
+            },
+            "r_squared": None,
+            "hac_lags_for_standard_errors": hac_lags,
+            "rolling_beta_window_in_trading_days": rolling_window,
+            "rolling_beta": _summary_stats([]),
+            "avg_net_exposure_pct_of_equity": _safe_round(avg_net, 4),
+        }
+        return (
+            section,
+            pd.Series(dtype=float, name="rolling_beta_vs_market"),
+            pd.Series(dtype=float, name="rolling_beta_standard_error"),
+        )
+
+    df["market_excess"] = df["spy"] - df["rf"]
+
+    model = sm.OLS(df["equity_excess"], sm.add_constant(df[["market_excess"]]))
+    res = model.fit(cov_type="HAC", cov_kwds={"maxlags": hac_lags})
+    # The same model refitted with classical standard errors.
+    classical = model.fit()
+
+    rolling_beta, rolling_se = _rolling_beta_with_standard_errors(
+        df, rolling_window, hac_lags
+    )
+
+    alpha, beta = res.params["const"], res.params["market_excess"]
+    ci = res.conf_int(alpha=0.05)
+
+    section = {
+        "n_observations": int(res.nobs),
+        "null_hypothesis_for_t_and_p": "alpha = 0 and beta = 0",
+        "p_value_reference_distribution": "standard normal (asymptotic)",
+        "beta": _safe_round(beta, 3),
+        "hac_standard_error_beta": _safe_round(res.bse["market_excess"], 4),
+        "classical_standard_error_beta": _safe_round(classical.bse["market_excess"], 4),
+        "t_stat_beta_hac": _safe_round(res.tvalues["market_excess"], 2),
+        "p_value_beta_two_sided": _safe_round(res.pvalues["market_excess"], 3),
+        "beta_95pct_confidence_interval_hac": {
+            "lower": _safe_round(ci.loc["market_excess", 0], 3),
+            "upper": _safe_round(ci.loc["market_excess", 1], 3),
+        },
+        "alpha_daily": _safe_round(alpha, 6),
+        "hac_standard_error_alpha_daily": _safe_round(res.bse["const"], 6),
+        "classical_standard_error_alpha_daily": _safe_round(classical.bse["const"], 6),
+        "t_stat_alpha_hac": _safe_round(res.tvalues["const"], 2),
+        "p_value_alpha_two_sided": _safe_round(res.pvalues["const"], 3),
+        "alpha_annualization_convention": "compounded: (1+alpha_daily)^252 - 1",
+        "alpha_annualized": _safe_round(_compound_annualize(alpha), 4),
+        "alpha_annualized_95pct_confidence_interval_hac": {
+            "lower": _safe_round(_compound_annualize(ci.loc["const", 0]), 4),
+            "upper": _safe_round(_compound_annualize(ci.loc["const", 1]), 4),
+        },
+        "r_squared": _safe_round(res.rsquared, 3),
+        "hac_lags_for_standard_errors": hac_lags,
+        "rolling_beta_window_in_trading_days": rolling_window,
+        "rolling_beta": _summary_stats(rolling_beta.values, decimals=3),
+        "avg_net_exposure_pct_of_equity": _safe_round(avg_net, 4),
+    }
+    return section, rolling_beta, rolling_se
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -340,9 +672,14 @@ class BacktestKPIs:
     margin: dict
     accruals: dict
     leverage: dict
+    market_exposure: dict | None
+    pnl_decomposition: dict | None
 
     period_returns: pd.DataFrame
     returns_between_backtest_dates: pd.DataFrame
+    rolling_beta_vs_market: pd.Series
+    rolling_beta_standard_error: pd.Series
+    pnl_decomposition_daily: pd.DataFrame
     inter_rebalance_periods_of_same_duration: bool
 
     def to_flat_dict(self) -> dict:
@@ -350,10 +687,12 @@ class BacktestKPIs:
         sections = (
             self.strategy, self.backtest_duration, self.backtest_PnL,
             self.perf_between_backtest_dates, self.performance_per_period,
-            self.drawdown_metrics, self.trading, self.margin,
-            self.accruals, self.leverage,
+            self.drawdown_metrics, self.trading, self.margin, self.accruals,
+            self.leverage, self.pnl_decomposition, self.market_exposure,
         )
         for section in sections:
+            if section is None:
+                continue
             for k, v in section.items():
                 if isinstance(v, dict):
                     for sub_k, sub_v in v.items():
@@ -365,22 +704,89 @@ class BacktestKPIs:
     def summary_series(self) -> pd.Series:
         return pd.Series(self.to_flat_dict())
 
+    def plot_rolling_beta_vs_market(
+        self,
+        save_path: Path | str | None = None,
+        figsize: tuple[float, float] = (12, 4),
+    ) -> tuple[plt.Figure, plt.Axes] | None:
+        """Plot the rolling-window beta of the equity curve on the market.
+
+        Draws `rolling_beta_vs_market`, a zero line, and the full-sample
+        beta as a reference. Returns `(figure, axes)`, or None when the
+        market-exposure section was not computed (no market proxy was
+        passed to `compute_backtest_kpis`).
+        """
+        if self.market_exposure is None or self.rolling_beta_vs_market.empty:
+            logger.warning(
+                "no rolling beta to plot: the market-exposure section was not "
+                "computed, or produced too few observations"
+            )
+            return None
+
+        window = self.market_exposure["rolling_beta_window_in_trading_days"]
+        full_sample_beta = self.market_exposure["beta"]
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Pointwise 95% band from the per-window HAC standard errors.
+        if not self.rolling_beta_standard_error.empty:
+            se = self.rolling_beta_standard_error.reindex(
+                self.rolling_beta_vs_market.index
+            )
+            ax.fill_between(
+                self.rolling_beta_vs_market.index,
+                self.rolling_beta_vs_market - 1.96 * se,
+                self.rolling_beta_vs_market + 1.96 * se,
+                color="grey", alpha=0.25, linewidth=0,
+                label="pointwise 95% interval (HAC)",
+            )
+        ax.plot(
+            self.rolling_beta_vs_market.index,
+            self.rolling_beta_vs_market.values,
+            color="black", linewidth=1.5,
+            label=f"rolling {window}-day beta",
+        )
+        ax.axhline(0.0, color="black", linewidth=1, alpha=0.7)
+        if full_sample_beta is not None:
+            ax.axhline(
+                full_sample_beta, color="blue", linestyle=(0, (5, 5)),
+                linewidth=1.5, alpha=0.8,
+                label=f"full-sample beta = {full_sample_beta:.3f}",
+            )
+        ax.set_ylabel("Beta vs market")
+        ax.set_xlabel("Date")
+        ax.set_title(
+            f"Rolling {window}-day beta of equity excess returns "
+            f"on market excess returns"
+        )
+        ax.grid(True, alpha=0.2)
+        ax.legend(loc="best")
+        fig.autofmt_xdate(rotation=45)
+        fig.tight_layout()
+
+        if save_path is not None:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            logger.info("rolling-beta plot saved to %s", save_path)
+        return fig, ax
+
 
 def compute_drawdowns(book_at_date: dict[pd.Timestamp, Book]) -> pd.Series:
     """Drawdown series of equity-excluding-margin-collateral."""
     equity = pd.Series(
         {
-            date : book.close.equity_excluding_margin_collateral
+            date: book.close.equity_excluding_margin_collateral
             for date, book in book_at_date.items()
         }
-    )
+    ).sort_index()
     peak = equity.cummax()
     return ((equity - peak) / peak).rename("drawdowns")
 
 
 def compute_backtest_kpis(
     backtest_results: BacktestResults,
-    rf_daily_returns: pd.Series
+    rf_daily_returns: pd.Series,
+    market_daily_returns: pd.Series | None = None,
+    close_prices: pd.Series | None = None,
 ) -> BacktestKPIs:
     """Compute all KPI sections from a `BacktestResults` object.
 
@@ -390,6 +796,14 @@ def compute_backtest_kpis(
         Output of function `run_backtest` from `modules/backtest.py`
     rf_daily_returns
         Daily risk-free returns indexed by trading date
+    market_daily_returns
+        Optional daily total returns of a market proxy (e.g. SPY,
+        from `download_market_returns`). When provided, the MARKET
+        EXPOSURE section is computed; when omitted it is skipped.
+    close_prices
+        Optional close prices indexed by (date, ticker). When provided, the DAILY P&L
+        DECOMPOSITION section is computed and the §2.6.6 identity is
+        asserted; when omitted the section is skipped.
     """
     book_at_date = backtest_results.book_at_date
     backtest_dates = sorted(book_at_date.keys())
@@ -407,7 +821,8 @@ def compute_backtest_kpis(
 
     pnl = _pnl_section(book_at_date, backtest_dates)
 
-    perf_between, returns_between_df = _performance_between_backtest_dates_section(book_at_date, backtest_dates, rf_daily_returns)
+    perf_between, returns_between_df = _performance_between_backtest_dates_section(
+        book_at_date, backtest_dates, rf_daily_returns)
 
     period, period_df = _period_performance_section(
         book_at_date, rebalance_dates, backtest_dates[-1],
@@ -438,6 +853,31 @@ def compute_backtest_kpis(
 
     leverage = _leverage_section(book_at_date)
 
+    if market_daily_returns is not None:
+        market_exposure, rolling_beta, rolling_beta_se = compute_market_exposure(
+            returns_between_df["equity_excess_return_since_previous_backtest_date"],
+            market_daily_returns,
+            rf_daily_returns,
+            book_at_date,
+        )
+    else:
+        market_exposure = None
+        rolling_beta = pd.Series(dtype=float, name="rolling_beta_vs_market")
+        rolling_beta_se = pd.Series(dtype=float, name="rolling_beta_standard_error")
+
+    if close_prices is not None:
+        pnl_decomposition_daily = compute_pnl_decomposition(
+            backtest_results, close_prices
+        )
+        pnl_decomposition = _pnl_decomposition_section(
+            pnl_decomposition_daily,
+            initial_equity=pnl["initial_equity"],
+            tolerance_per_day=_PNL_IDENTITY_TOLERANCE_PER_DAY,
+        )
+    else:
+        pnl_decomposition = None
+        pnl_decomposition_daily = pd.DataFrame()
+
     return BacktestKPIs(
         strategy=strategy,
         backtest_duration=duration,
@@ -449,8 +889,13 @@ def compute_backtest_kpis(
         margin=margin,
         accruals=accruals,
         leverage=leverage,
+        market_exposure=market_exposure,
+        pnl_decomposition=pnl_decomposition,
         period_returns=period_df,
         returns_between_backtest_dates=returns_between_df,
+        rolling_beta_vs_market=rolling_beta,
+        rolling_beta_standard_error=rolling_beta_se,
+        pnl_decomposition_daily=pnl_decomposition_daily,
         inter_rebalance_periods_of_same_duration=same_duration
     )
 
@@ -483,14 +928,38 @@ _KEY_FORMATS: dict[str, str] = {
     "gross_leverage": "{:.2%}",
     "long_leverage": "{:.2%}",
     "short_leverage": "{:.2%}",
+    "alpha_annualized": "{:.2%}",
+    "alpha_annualized_95pct_confidence_interval_hac": "{:.2%}",
+    "avg_net_exposure_pct_of_equity": "{:.2%}",
+    "cumulative_pnl_as_pct_of_initial_equity": "{:.2%}",
+    # Market-exposure regression outputs
+    "beta": "{:.3f}",
+    "hac_standard_error_beta": "{:.4f}",
+    "classical_standard_error_beta": "{:.4f}",
+    "t_stat_beta_hac": "{:.2f}",
+    "p_value_beta_two_sided": "{:.3f}",
+    "beta_95pct_confidence_interval_hac": "{:.3f}",
+    "alpha_daily": "{:.6f}",
+    "hac_standard_error_alpha_daily": "{:.6f}",
+    "classical_standard_error_alpha_daily": "{:.6f}",
+    "t_stat_alpha_hac": "{:.2f}",
+    "p_value_alpha_two_sided": "{:.3f}",
+    "r_squared": "{:.3f}",
+    "rolling_beta": "{:.3f}",
     # Dollar amounts
     "initial_equity": "{:,.2f}",
     "final_equity": "{:,.2f}",
     "total_trading_fees_paid_in_backtest": "{:,.2f}",
+    "total_execution_cost_paid_in_backtest": "{:,.2f}",
+    "total_gross_notional_traded_in_backtest": "{:,.2f}",
     "dividends_per_trading_date": "{:,.2f}",
     "financing_costs_per_trading_date": "{:,.2f}",
     "collateral_per_cure": "{:,.2f}",
-    "total_collateral_posted": "{:,.2f}"
+    "total_collateral_posted": "{:,.2f}",
+    "cumulative_pnl_in_dollars": "{:,.2f}",
+    # Residual and tolerance are float-noise scale; 2dp would print "0.00".
+    "max_absolute_daily_residual": "{:.2e}",
+    "tolerance_per_day": "{:.0e}"
 }
 
 
@@ -538,13 +1007,19 @@ def _build_kpi_summary(kpis: BacktestKPIs) -> str:
     _section("STRATEGY", kpis.strategy)
     _section("BACKTEST DURATION", kpis.backtest_duration)
     _section("BACKTEST P&L", kpis.backtest_PnL)
-    _section("PERFORMANCE BETWEEN BACKTEST DATES", kpis.perf_between_backtest_dates)
-    _section("PERFORMANCE PER INTER-REBALANCE PERIOD", kpis.performance_per_period)
+    _section("PERFORMANCE BETWEEN BACKTEST DATES",
+             kpis.perf_between_backtest_dates)
+    _section("PERFORMANCE PER INTER-REBALANCE PERIOD",
+             kpis.performance_per_period)
     _section("DRAWDOWNS", kpis.drawdown_metrics)
     _section("TRADING", kpis.trading)
     _section("MARGIN REQUIREMENTS", kpis.margin)
     _section("ACCRUALS", kpis.accruals)
     _section("LEVERAGE", kpis.leverage)
+    if kpis.pnl_decomposition is not None:
+        _section("DAILY P&L DECOMPOSITION", kpis.pnl_decomposition)
+    if kpis.market_exposure is not None:
+        _section("MARKET EXPOSURE", kpis.market_exposure)
     lines.append("")
     lines.append("-" * LINE_WIDTH)
     lines.append("")
@@ -576,10 +1051,16 @@ def print_kpi_summary(kpis: BacktestKPIs) -> None:
     print(_build_kpi_summary(kpis))
 
 
-
 # ---------------------------------------------------------------------------
 # Formatted DataFrames
 # ---------------------------------------------------------------------------
+
+def _format_date_index(label):
+    """Render a Timestamp index label as YYYY-MM-DD for display."""
+    if isinstance(label, pd.Timestamp):
+        return label.strftime("%Y-%m-%d")
+    return str(label)
+
 
 def _make_returns_styler(df: pd.DataFrame, color_cols: list[str], fmt_dict: dict):
     if not color_cols:
@@ -592,6 +1073,7 @@ def _make_returns_styler(df: pd.DataFrame, color_cols: list[str], fmt_dict: dict
         "rwg",
         ["red", "darkred", "lightcoral", "lightgreen", "darkgreen", "green"],
     )
+
     def _color(val):
         if pd.isna(val):
             return "background-color: black; color: white"
@@ -599,12 +1081,21 @@ def _make_returns_styler(df: pd.DataFrame, color_cols: list[str], fmt_dict: dict
         r, g, b = (int(x * 255) for x in rgba[:3])
         text = "white" if abs(val) > 0.08 else "black"
         return f"background-color: rgb({r},{g},{b}); color: {text}"
-    
-    return df.style.format(fmt_dict).map(_color, subset=color_cols)
+
+    return (
+        df.style
+        .format(fmt_dict)
+        .format_index(_format_date_index, axis=0)
+        .map(_color, subset=color_cols)
+    )
+
 
 def style_returns_df(df: pd.DataFrame):
     """Red/white/green colormap on returns columns (Handles
     both period-returns and consecutive-backtest-dates returns) .
+
+    The date index is formatted as YYYY-MM-DD at display time; the
+    underlying DataFrame keeps its DatetimeIndex.
     """
     column_groups = [
         ("previous_period_equity_returns",
@@ -625,7 +1116,8 @@ def style_returns_df(df: pd.DataFrame):
         if rf_col in df.columns:
             fmt_pct_3.append(rf_col)
 
-    fmt_dict = {c: lambda v: "N/A" if pd.isna(v) else f"{v:.2%}" for c in fmt_pct_2}
+    fmt_dict = {
+        c: lambda v: "N/A" if pd.isna(v) else f"{v:.2%}" for c in fmt_pct_2}
     fmt_dict.update(
         {c: lambda v: "N/A" if pd.isna(v) else f"{v:.3%}" for c in fmt_pct_3}
     )
@@ -663,7 +1155,7 @@ def build_book_ledger_across_dates(
         ]:
             for acct in accounts:
                 row[(acct, moment_label)] = getattr(snapshot, acct)
-        records[date.strftime("%Y-%m-%d")] = row
+        records[date] = row
 
     cols_idx = pd.MultiIndex.from_product(
         [accounts, moments], names=["account", "moment"],
@@ -671,7 +1163,7 @@ def build_book_ledger_across_dates(
     book_df = pd.DataFrame.from_dict(records, orient="index").reindex(
         columns=cols_idx
     )
-    book_df.index.name = "date"
+    book_df.index = pd.DatetimeIndex(book_df.index, name="date")
     return book_df
 
 
@@ -714,7 +1206,7 @@ def show_book(book: pd.DataFrame):
             })
     return (
         book.style.format("{:,.2f}")
+        .format_index(_format_date_index, axis=0)
         .apply(border_styles, axis=1)
         .set_table_styles(header_styles)
     )
-

@@ -216,12 +216,12 @@ def _apply_overnight_pnl(
         snapshot_at_open, date, prev_date, close_prices,
         params.data.daily_financing_rates,
     )
-    state.equity_accruals_from_financing_costs[date] = round(
-        snapshot_at_open.equity - eq_before, 2
+    state.equity_accruals_from_financing_costs[date] = (
+        snapshot_at_open.equity - eq_before
     )
     eq_before = snapshot_at_open.equity
     snapshot_at_open = bm.account_dividends(date, snapshot_at_open, params.data.dividend_data)
-    state.equity_accruals_from_dividends[date] = round(snapshot_at_open.equity - eq_before, 2)
+    state.equity_accruals_from_dividends[date] = snapshot_at_open.equity - eq_before
     return snapshot_at_open
 
 
@@ -353,13 +353,19 @@ def _stop_loss_triggered(
 
 
 def _strategy_return_target_hit(
-    state: _BacktestState, params: BacktestParameters, first_date: pd.Timestamp
+    state: _BacktestState, params: BacktestParameters
 ) -> bool:
+    """Fire when equity has gained the target on the capital deployed.
+
+    The baseline is `initial_cash`, matching the stop-loss and the KPI
+    report's reported return, so all three measure from the same figure.
+    """
     if not params.rules.use_return_target_hit_rule:
         return False
-    initial_eq = state.book_at_date[first_date].close.equity_excluding_margin_collateral
     current_eq = state.book_working.equity_excluding_margin_collateral
-    return (current_eq / initial_eq - 1.0) >= params.rules.return_target_for_strategy
+    return (
+        current_eq / params.rules.initial_cash - 1.0
+    ) >= params.rules.return_target_for_strategy
 
 
 def _inter_rebalance_target_hit(
@@ -626,7 +632,7 @@ def _record_at_close(
     if not events_today:
         events_today = [EVENT_MTM_ONLY]
     state.date_events[date] = tuple(events_today)
-    state.book_at_date[date].close = bm.round_snapshot_for_display(state.book_working)
+    state.book_at_date[date].close = copy.deepcopy(state.book_working)
 
 
 # =============================================================================
@@ -665,8 +671,8 @@ def _initialize_state(params: BacktestParameters) -> _BacktestState:
     state.actual_rebalance_dates = state.actual_rebalance_dates.append(pd.DatetimeIndex([first_date]))
     state.actual_reb_date_to_tickers_universe_dict[first_date] = tickers
     state.book_at_date[first_date] = Book(
-            open = bm.round_snapshot_for_display(book.open),
-            close = bm.round_snapshot_for_display(book.open)  # overwritten before moving to the second backtest date. See thread.
+            open = copy.deepcopy(book.open),
+            close = copy.deepcopy(book.open)  # overwritten before moving to the second backtest date. See thread.
     )
     # First-date accruals are zero by convention (no prior day).
     state.equity_accruals_from_financing_costs[first_date] = 0.0
@@ -725,8 +731,8 @@ def run_backtest(params: BacktestParameters) -> BacktestResults:
         
         # 3. Snapshot the book at the open; bifurcate to a working close snapshot
         state.book_at_date[date] = Book(
-            open = bm.round_snapshot_for_display(snapshot_at_open),
-            close = bm.round_snapshot_for_display(snapshot_at_open)  # overwritten below
+            open = copy.deepcopy(snapshot_at_open),
+            close = copy.deepcopy(snapshot_at_open)  # overwritten below
         )
         state.book_working = copy.deepcopy(snapshot_at_open)
 
@@ -747,7 +753,7 @@ def run_backtest(params: BacktestParameters) -> BacktestResults:
             _record_at_close(state, date, events_today)
             break
 
-        if _strategy_return_target_hit(state, params, first_date):
+        if _strategy_return_target_hit(state, params):
             events_today.append(EVENT_RETURN_TARGET_FOR_STRATEGY)
             logger.info(
                 "(%s) hit_return_target_for_strategy", date.strftime("%Y-%m-%d"),

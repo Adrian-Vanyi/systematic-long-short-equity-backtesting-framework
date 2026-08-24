@@ -86,7 +86,7 @@ def align_universe(
     sigma
         estimated covariance matrix of tickers' returns for the next inter-rebalance period (DataFrame indexed and columned by ticker).
     betas
-        estimated CAPM beta of tickers (Series indexed by ticker, or None (skipped from intersection)).
+        estimated beta of tickers (Series indexed by ticker, or None (skipped from intersection)).
     """
     idx = (
         pd.Index(tickers)

@@ -25,9 +25,9 @@
 --------------------------------------------------------------------------------
                                   BACKTEST P&L                                  
 --------------------------------------------------------------------------------
-  initial_equity                                                       99,938.00
+  initial_equity                                                      100,000.00
   final_equity                                                        109,394.48
-  unrealized_return_of_equity                                              9.46%
+  unrealized_return_of_equity                                              9.39%
 
 --------------------------------------------------------------------------------
                        PERFORMANCE BETWEEN BACKTEST DATES                       
@@ -61,6 +61,8 @@
                                     TRADING                                     
 --------------------------------------------------------------------------------
   total_trading_fees_paid_in_backtest                                      30.35
+  total_execution_cost_paid_in_backtest                                 1,657.90
+  total_gross_notional_traded_in_backtest                           4,144,758.19
   turnover:
     min                                                                   23.67%
     max                                                                  211.88%
@@ -119,5 +121,64 @@
     max                                                                  251.40%
     avg                                                                  127.20%
     std                                                                   42.00%
+
+--------------------------------------------------------------------------------
+                            DAILY P&L DECOMPOSITION                             
+--------------------------------------------------------------------------------
+  cumulative_pnl_in_dollars:
+    price_pnl                                                          12,081.99
+    dividend_pnl                                                         -916.69
+    financing_pnl                                                         -82.57
+    trading_fees                                                          -30.35
+    execution_costs                                                    -1,657.90
+    posted_collateral                                                       0.00
+    total_equity_change                                                 9,394.48
+  cumulative_pnl_as_pct_of_initial_equity:
+    price_pnl                                                             12.08%
+    dividend_pnl                                                          -0.92%
+    financing_pnl                                                         -0.08%
+    trading_fees                                                          -0.03%
+    execution_costs                                                       -1.66%
+    posted_collateral                                                      0.00%
+    total_equity_change                                                    9.39%
+  identity_check:
+    number_of_dates_tested                                                   123
+    max_absolute_daily_residual                                         1.50e-10
+    tolerance_per_day                                                      1e-06
+    number_of_dates_above_tolerance                                            0
+
+--------------------------------------------------------------------------------
+                                MARKET EXPOSURE                                 
+--------------------------------------------------------------------------------
+  n_observations                                                             122
+  null_hypothesis_for_t_and_p                             alpha = 0 and beta = 0
+  p_value_reference_distribution                    standard normal (asymptotic)
+  beta                                                                     0.331
+  hac_standard_error_beta                                                 0.2659
+  classical_standard_error_beta                                           0.1948
+  t_stat_beta_hac                                                           1.24
+  p_value_beta_two_sided                                                   0.213
+  beta_95pct_confidence_interval_hac:
+    lower                                                                 -0.190
+    upper                                                                  0.852
+  alpha_daily                                                           0.000352
+  hac_standard_error_alpha_daily                                        0.001625
+  classical_standard_error_alpha_daily                                  0.001780
+  t_stat_alpha_hac                                                          0.22
+  p_value_alpha_two_sided                                                  0.829
+  alpha_annualization_convention             compounded: (1+alpha_daily)^252 - 1
+  alpha_annualized                                                         9.27%
+  alpha_annualized_95pct_confidence_interval_hac:
+    lower                                                                -51.09%
+    upper                                                                143.48%
+  r_squared                                                                0.023
+  hac_lags_for_standard_errors                                                 5
+  rolling_beta_window_in_trading_days                                         60
+  rolling_beta:
+    min                                                                   -0.432
+    max                                                                    0.913
+    avg                                                                    0.254
+    std                                                                    0.421
+  avg_net_exposure_pct_of_equity                                         -40.31%
 
 --------------------------------------------------------------------------------

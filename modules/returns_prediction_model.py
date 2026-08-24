@@ -94,7 +94,7 @@ def _sign_hit_rates(
     Returns
     -------
     dict with keys:
-        "sign_hit_rate"        overall, over longs ∪ shorts
+        "sign_hit_rate"        overall, over longs and shorts
         "sign_hit_rate_long"   over the long side only
         "sign_hit_rate_short"  over the short side only
     Each value is in [0, 1], or NaN if its bucket is empty.

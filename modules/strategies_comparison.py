@@ -1,6 +1,6 @@
 """Utilities used for comparing the backtest results for different strategies.
 
-This module bundles the helpers used by the `strategy_comparison.ipyb` notebook to sweep many backtests 
+This module combines the helpers used by the `strategy_comparison.ipyb` notebook to sweep many backtests 
 across grids of start dates, strategy return targets, strategies, and rebalance-rule settings, and then aggregate
  the results into comparison tables (see documentation, §13).
 
@@ -29,7 +29,16 @@ Public API
         arrange Sharpe metrics by strategy and historical date window.
 
 * function `style_sharpe_table(...)`
-        per-metric value-formatting, vertical column separators, and a red/neutral/green color map applied to selected metrics.        
+        per-metric value-formatting, vertical column separators, and a red/neutral/green color map applied to selected metrics.
+
+* function `format_exposure_records(...)`
+        cross-strategy market-exposure table (§14.3), in long form.
+
+* function `style_exposure_table(...)`
+        per-metric value-formatting for the exposure table, colour-mapping beta.
+
+* function `sweep_equity_curves(...)`
+        stack the per-run daily equity curves into one long-form frame.
 
 """
 
@@ -136,9 +145,22 @@ class Results_Sharpe:
     annualized_sharpe: float | Literal["nan"]
     max_drawdown: float | Literal["nan"]
     n_daily_returns: int | Literal["nan"]
-    error: str | None       
+    error: str | None
+    # Ex-post market exposure metrics of the realised equity curve:
+    n_observations: int | Literal["nan"] = "nan"
+    beta: float | Literal["nan"] = "nan"
+    beta_95pct_ci_lower: float | Literal["nan"] = "nan"
+    beta_95pct_ci_upper: float | Literal["nan"] = "nan"
+    t_stat_beta_hac: float | Literal["nan"] = "nan"
+    alpha_annualized: float | Literal["nan"] = "nan"
+    t_stat_alpha_hac: float | Literal["nan"] = "nan"
+    r_squared: float | Literal["nan"] = "nan"
+    avg_net_exposure: float | Literal["nan"] = "nan"
+    # The daily equity curve and net exposure, persisted so that any later
+    # statistic can be recomputed without re-running the sweep.
+    daily_equity_curve: pd.Series | None = None
+    daily_net_exposure: pd.Series | None = None
          
-
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -570,7 +592,7 @@ def compute_sharpe_ratio(
                 date : book.close.equity_excluding_margin_collateral
                 for date, book in book_at_date.items()
             }
-        )
+        ).sort_index()
         return_since_prev = eq_at_backtest_dates.pct_change(fill_method=None)
 
 
@@ -597,6 +619,16 @@ def compute_sharpe_ratio(
 
         n_daily_returns = len(excess_return)
 
+        exposure, _rolling_beta, _rolling_se = kpi_mod.compute_market_exposure(
+            equity_excess_returns = excess_return,
+            spy_daily_returns = data.daily_spy_returns,
+            rf_daily_returns = rf_daily_returns,
+            book_at_date = book_at_date,
+        )
+
+        def _or_nan(value):
+            return "nan" if value is None else value
+
         return Results_Sharpe(
             initial_equity = config.initial_cash,
             start_date = start_date,
@@ -609,7 +641,28 @@ def compute_sharpe_ratio(
             annualized_sharpe = annualized_sharpe,
             n_daily_returns = n_daily_returns,
             max_drawdown =  max_drawdown,
-            error = None
+            error = None,
+            n_observations = _or_nan(exposure["n_observations"]),
+            beta = _or_nan(exposure["beta"]),
+            beta_95pct_ci_lower = _or_nan(
+                exposure["beta_95pct_confidence_interval_hac"]["lower"]
+            ),
+            beta_95pct_ci_upper = _or_nan(
+                exposure["beta_95pct_confidence_interval_hac"]["upper"]
+            ),
+            t_stat_beta_hac = _or_nan(exposure["t_stat_beta_hac"]),
+            alpha_annualized = _or_nan(exposure["alpha_annualized"]),
+            t_stat_alpha_hac = _or_nan(exposure["t_stat_alpha_hac"]),
+            r_squared = _or_nan(exposure["r_squared"]),
+            avg_net_exposure = _or_nan(exposure["avg_net_exposure_pct_of_equity"]),
+            daily_equity_curve = eq_at_backtest_dates,
+            daily_net_exposure = pd.Series(
+                {
+                    date: book.close.long_leverage - book.close.short_leverage
+                    for date, book in book_at_date.items()
+                    if book.close.equity != 0
+                }
+            ).sort_index()
         )
     
     except Exception as exc:
@@ -648,7 +701,6 @@ def aggregate_to_table(
     """Aggregate raw run records into a (return_target x group) table.
 
     Output: MultiIndex columns with level 0 = metric name, level 1 = group.
-    Rows: return_target (reindexed to `return_targets`).
     """
 
     def n_start_dates_tested(sub: pd.DataFrame) -> pd.Series:
@@ -690,16 +742,34 @@ _METRIC_FORMATS = {
     "n_daily_returns": "{:d}",
     "daily_sharpe": "{:.2f}",
     "annualized_sharpe": "{:.2f}",
-    "max_drawdown": "{:.2%}"
+    "max_drawdown": "{:.2%}",
+    "n_observations": "{:d}",
+    "beta": "{:.3f}",
+    "beta_95pct_ci_lower": "{:.3f}",
+    "beta_95pct_ci_upper": "{:.3f}",
+    "t_stat_beta_hac": "{:.2f}",
+    "alpha_annualized": "{:.2%}",
+    "t_stat_alpha_hac": "{:.2f}",
+    "r_squared": "{:.3f}",
+    "avg_net_exposure": "{:.2%}"
 }
 
+# Columns of the cross-strategy exposure table (§14.3), in display order.
+EXPOSURE_METRICS = [
+    "n_observations", "beta", "beta_95pct_ci_lower", "beta_95pct_ci_upper",
+    "t_stat_beta_hac", "alpha_annualized", "t_stat_alpha_hac", "r_squared",
+    "avg_net_exposure",
+]
+
 def _format_cell(val, metric: str) -> str:
-    if val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
+    if val is None or val == "nan" or (
+        isinstance(val, float) and (np.isnan(val) or np.isinf(val))
+    ):
         return "N/A"
     fmt = _METRIC_FORMATS.get(metric)
     if fmt is None:
         return str(val)
-    if metric in ("n_start_dates_tested","n_daily_returns"):
+    if metric in ("n_start_dates_tested", "n_daily_returns", "n_observations"):
         return fmt.format(int(val))
     return fmt.format(float(val))
 
@@ -779,18 +849,119 @@ def format_sharpe_records(sharpe_records: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def format_exposure_records(sharpe_records: pd.DataFrame) -> pd.DataFrame:
+    """Cross-strategy market-exposure table (§14.3).
+
+    Long form, unlike `format_sharpe_records`: rows are (strategy,
+    historical window) and columns are the exposure metrics.
+
+    Expects the DataFrame built from `Results_Sharpe` records for one
+    setting of the dynamic rebalancing rule.
+    """
+    records = sharpe_records.copy()
+    records["historical window"] = (
+        pd.to_datetime(records["start_date"]).dt.strftime("(%Y-%m-%d)")
+        + " - "
+        + pd.to_datetime(records["end_date"]).dt.strftime("(%Y-%m-%d)")
+    )
+    out = (
+        records.set_index(["strategy_name", "historical window"])[EXPOSURE_METRICS]
+        .sort_index()
+    )
+    out.index.set_names(["strategy", "historical window"], inplace=True)
+    return out
+
+
+def sweep_records_to_frame(records: list[Results_Sharpe]) -> pd.DataFrame:
+    """Flatten `Results_Sharpe` records as required to save it as a .parquet file."""
+    df = pd.DataFrame([r.__dict__ for r in records]).drop(
+        columns=["daily_equity_curve", "daily_net_exposure"], errors="ignore"
+    )
+    text_columns = {"strategy_name", "rebalance_freq_type", "error"}
+    for col in df.columns:
+        if col in text_columns or col == "use_inter_rebalance_rule":
+            continue
+        if col in ("start_date", "end_date"):
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+        else:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def sweep_equity_curves(records: list[Results_Sharpe]) -> pd.DataFrame:
+    """Stack the per-run daily equity curves into one long-form frame.
+    
+    Returns a frame indexed by
+    (strategy_name, start_date, end_date, use_inter_rebalance_rule, date)
+    with columns `equity_excluding_margin_collateral` and `net_exposure`.
+    """
+    frames = []
+    for res in records:
+        if res.daily_equity_curve is None or res.daily_equity_curve.empty:
+            continue
+        curve = res.daily_equity_curve.rename(
+            "equity_excluding_margin_collateral"
+        ).to_frame()
+        if res.daily_net_exposure is not None:
+            curve["net_exposure"] = res.daily_net_exposure.reindex(curve.index)
+        curve.index.name = "date"
+        curve = curve.reset_index()
+        curve["strategy_name"] = res.strategy_name
+        curve["start_date"] = res.start_date
+        curve["end_date"] = res.end_date
+        curve["use_inter_rebalance_rule"] = res.use_inter_rebalance_rule
+        frames.append(curve)
+
+    if not frames:
+        return pd.DataFrame()
+
+    out = pd.concat(frames, ignore_index=True)
+    return out.set_index(
+        ["strategy_name", "start_date", "end_date",
+         "use_inter_rebalance_rule", "date"]
+    ).sort_index()
+
+
+def style_exposure_table(df: pd.DataFrame):
+    """Per-metric formatting for the exposure table, with a colour rule on beta."""
+    formatted = df.copy()
+    for col in formatted.columns:
+        formatted[col] = formatted[col].map(lambda v, m=col: _format_cell(v, m))
+
+    cmap = LinearSegmentedColormap.from_list(
+        "beta_rwg",
+        [(0.00, "#8b0000"), (0.25, "#e57373"), (0.48, "#fbe9e9"),
+         (0.50, "#f5f5f5"), (0.52, "#e7f4e7"), (0.75, "#66bb6a"),
+         (1.00, "#1b5e20")],
+    )
+
+    def _color(raw_val):
+        if raw_val is None or raw_val == "nan" or pd.isna(raw_val):
+            return "background-color: black; color: white"
+        t = float(np.clip((float(raw_val) + 1.0) / 2.0, 0.0, 1.0))
+        r, g, b = (int(x * 255) for x in cmap(t)[:3])
+        text = "white" if (t > 0.78 or t < 0.22) else "black"
+        return f"background-color: rgb({r},{g},{b}); color: {text}"
+
+    styler = formatted.style
+    if "beta" in df.columns:
+        colors = df["beta"].map(_color)
+        styler = styler.apply(lambda s, c=colors: c, subset=["beta"], axis=0)
+    return styler
+
+
 COLOR_METRICS = {"daily_sharpe", "annualized_sharpe", "max_drawdown"}
 
 SATURATION_AT = {
     "daily_sharpe":      0.06,
     "annualized_sharpe": 1.0,
-    "max_drawdown":      0.80,   # saturate at -50%
+    "max_drawdown":      0.80,   
 }
 
 
 def style_sharpe_table(df: pd.DataFrame):
     """Per-metric value-formatting, vertical column separators, and a diverging
-    red/neutral/green color map applied only to selected metrics.
+    red/neutral/green color map applied to specific metrics.
 
     Coloring rule: the sign of the value picks the hue (negative -> red,
     positive -> green) and the magnitude drives intensity, saturating at a
