@@ -90,38 +90,61 @@ A complete single-backtest example, with every output explained, is given in the
 
 ## Results at a glance
 
-These are some of the framework's results:
+Sharpe ratios and market-exposure results are reported across 24 combinations of strategy
+variant, historical window, and rebalancing rule, spanning the four strategy variants:
+momentum, a factors model, and two MVO books (max-return and min-variance). The three
+historical windows are 2010-03 to 2020-01, 2010-03 to 2026-02, and 2022-10 to 2026-01, so
+the set spans both a long sample and a recent one. The target-hit study (§14.2) holds the
+configuration fixed and instead varies the return target and the deployment date, over 288
+backtests in total.
 
-**The ledger reconciles:** Every backtest decomposes each day's equity P&L into
-price, dividend, financing, commission and execution-cost streams and checks the
-decomposition as an identity on every date. On the documented run (§13.1) the
-largest daily residual is 1.5e-10 against a 1e-6 tolerance.
+- **The ledger reconciles:** Every backtest decomposes each day's equity P&L into price,
+  dividend, financing, trading-fee and execution-cost streams (plus posted collateral,
+  under the margin-cure variant that uses it) and checks the decomposition as an identity
+  on every date. On the documented run (the factors model over 2023, monthly rebalancing,
+  $100k initial equity; §13.1), the largest daily residual is 1.5e-10 against a 1e-6
+  tolerance, with no date above tolerance.
 
-**Costs are explicit:** On that run, a gross price P&L of +12.08% of initial
-equity nets to +9.39% after costs, the largest stream being execution costs at
-1.66% of initial equity (§12.8).
+- **Costs are explicit:** On that run, a gross price P&L of +12.08% of initial equity nets
+  to +9.39% once every other stream is accounted for. The breakdown, as a percentage of
+  initial equity: execution costs -1.66%, dividends -0.92%, financing -0.08%, trading fees
+  -0.03% (§12.8).
 
-**The diagnostics separate constrained from unconstrained books:** Across the
-twelve strategy and window combinations, the two MVO strategies (using beta and net-exposure caps at rebalance)
-realise |beta| <= 0.272 and average net exposure within [-11.7%, +3.2%], while
-momentum and the factors model (both unconstrained) reach a maximum beta of +1.590 and average net exposures of
-81.9% and 43.5% (§14.3.7). The caveat about the impact that the beta constraint at rebalance has on realized beta is addressed in §14.3.7.
+- **The margin requirement is an active constraint:** On that run, 44.4% of rebalances
+  produced a target portfolio that failed the rebalance margin requirement and had to be shrunk, retaining between 22% and 98% of the target position sizes (mean 61.4%). No
+  maintenance-margin violation occurred on any backtest date (§13.7).
 
-**The strategies mostly do not perform:** Across 24 combinations of strategy/historical-window/
-rebalancing-rule, the highest annualized Sharpe is 0.22 and 18 are
-negative. Annualized alpha against the market is negative in 19 of 24
-runs (median -11.8%); the single run rejecting the hypothesis alpha = 0 at the level 5% is a loss of
--23.1%. However, the Sharpe figures here are cross-strategy comparators, not
-forward-looking estimates (§14.1, §14.1.6, §14.3.7).
+- **The diagnostics separate constrained from unconstrained books:** The two MVO
+  strategies apply beta and net-exposure caps at rebalance. Across all runs their realized
+  |beta| stays at or below 0.272 (mean |beta| of 0.15 and 0.09 for the max-return and
+  min-variance variants respectively), with per-run average net exposure spanning −11.7%
+  to +3.2% (importantly, the rebalance-time constraint controls the magnitude of realized beta but
+  does not drive it to zero, §14.3.7). In contrast, the unconstrained strategies are looser: the factors model reaches |beta| 0.516 (mean 0.25) and momentum |beta| 1.590 (mean 0.52); momentum is net long the market in every run (with every beta positive). 
 
-**Target-hit statistics** (§14.2), over 12 quarterly start dates from 2021-01 to
-2023-10, one-year runs, and a 50% stop-loss: at a 7% annual return target, momentum hit
-in 10 of 12 start dates (83.3%), averaging 71.8 trading days to target, against
-50.0% for the factors model. Min-variance MVO was the only one of the four
-strategy variants with no stop-loss termination anywhere in the 288 backtests run.
-Twelve start dates is a demonstration of the methodology, not a statistically
-meaningful sample (§14.2.1), and strong comparison metrics are "weak
-positive evidence": reasonably necessary for deployment, but not sufficient to remove their risk (§15).
+- **Sharpe ratios are mostly unremarkable:** The highest annualized Sharpe across the 24
+  combinations is 0.22, and 18 are negative. These figures should be read as a descriptive
+  cross-strategy comparison of past performance, not as forward-looking estimates (§14.1).
+
+- **Momentum and max-return MVO hit the return target most often:** Over 12 quarterly
+  start dates from 2021-01 to 2023-10, on one-year runs with a 50% stop-loss, both
+  strategies reached a 7% annual return target in 10 of 12 start dates (83.3%), against
+  50.0% for the factors model. Max-return MVO got there faster, averaging 30.5 trading days
+  to target versus 71.8 for momentum. Min-variance MVO was the only variant with no
+  stop-loss termination anywhere across the 288 backtests (§14.2).
+
+- **The target-hit figures demonstrate the methodology rather than establishing an edge:**
+  Twelve start dates are not a statistically meaningful sample (§14.2.1). This study also
+  measures something different from the Sharpe figures: a Sharpe ratio is computed from
+  the daily returns of one continuous window and is invariant to the order in which those
+  returns arrive, whereas whether a run reaches its target before its stop-loss depends entirely on
+  that ordering. Strong comparison metrics are weak positive evidence: necessary
+  but far from sufficient for a deployment decision (§15).
+
+- **Market alpha is inconclusive:** 23 of the 24 alpha estimates, measured against the
+  market rather than an extensive set of known risk factors, are not statistically
+  distinguishable from zero at the 5% level. So the tested runs provide no evidence of positive or negative alpha.
+
+
 
 ## Limitations and possible extensions
 
