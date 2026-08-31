@@ -17,7 +17,7 @@
 --------------------------------------------------------------------------------
                                BACKTEST DURATION                                
 --------------------------------------------------------------------------------
-  number_of_backtest_days                                                    123
+  number_of_backtest_dates                                                   123
   first_backtest_date                                                 2023-01-05
   last_backtest_date                                                  2023-07-03
   cause_of_backtest_termination                   hit_return_target_for_strategy
@@ -32,7 +32,6 @@
 --------------------------------------------------------------------------------
                        PERFORMANCE BETWEEN BACKTEST DATES                       
 --------------------------------------------------------------------------------
-  number_of_backtest_dates                                                   123
   avg_excess_return_between_backtest_dates                                 0.08%
   std_of_excess_returns_between_backtest_dates                             1.96%
   min_excess_return_between_backtest_dates                                -5.68%
@@ -58,6 +57,46 @@
     std                                                                    4.11%
 
 --------------------------------------------------------------------------------
+                                    LEVERAGE                                    
+--------------------------------------------------------------------------------
+  gross_leverage:
+    min                                                                  150.09%
+    max                                                                  326.43%
+    avg                                                                  214.18%
+    std                                                                   36.50%
+  long_leverage:
+    min                                                                   11.65%
+    max                                                                  156.96%
+    avg                                                                   86.93%
+    std                                                                   36.97%
+  short_leverage:
+    min                                                                   38.96%
+    max                                                                  251.39%
+    avg                                                                  127.24%
+    std                                                                   42.00%
+  net_leverage:
+    min                                                                 -237.33%
+    max                                                                  112.59%
+    avg                                                                  -40.31%
+    std                                                                   70.20%
+
+--------------------------------------------------------------------------------
+                              MARGIN REQUIREMENTS                               
+--------------------------------------------------------------------------------
+  maint_MR_violation_number_of_backtest_dates                                  0
+  maint_MR_violation_frequency                                             0.00%
+  rebalance_MR_cure_number_of_rebalance_dates                                  8
+  rebalance_MR_cure_frequency                                             44.44%
+  cure_method                                                shrinking_exposures
+  shrink_factor_per_cure:
+    min                                                                   22.00%
+    max                                                                   98.00%
+    avg                                                                   61.37%
+    std                                                                   27.72%
+  collateral_per_cure                                                        N/A
+  total_collateral_posted                                                    N/A
+
+--------------------------------------------------------------------------------
                                     TRADING                                     
 --------------------------------------------------------------------------------
   total_trading_fees_paid_in_backtest                                      30.35
@@ -74,56 +113,21 @@
     at_backtest_date                                                  2023-05-26
 
 --------------------------------------------------------------------------------
-                              MARGIN REQUIREMENTS                               
---------------------------------------------------------------------------------
-  maint_MR_violation_number_of_backtest_days                                   0
-  maint_MR_violation_frequency                                             0.00%
-  rebalance_MR_cure_number_of_backtest_days                                    8
-  rebalance_MR_cure_frequency                                             44.44%
-  cure_method                                                shrinking_exposures
-  shrink_factor_to_cure_an_MR_violation:
-    min                                                                   22.00%
-    max                                                                   98.00%
-    avg                                                                   61.40%
-    std                                                                   27.70%
-  collateral_per_cure                                                        N/A
-  total_collateral_posted                                                    N/A
-
---------------------------------------------------------------------------------
                                     ACCRUALS                                    
 --------------------------------------------------------------------------------
-  dividends_per_trading_date:
+  dividend_pnl_per_backtest_date:
     min                                                                  -196.50
     max                                                                   100.00
     avg                                                                    -7.45
     std                                                                    34.35
-  financing_costs_per_trading_date:
+  financing_pnl_per_backtest_date:
     min                                                                   -51.98
     max                                                                    14.82
     avg                                                                    -0.67
     std                                                                    10.32
 
 --------------------------------------------------------------------------------
-                                    LEVERAGE                                    
---------------------------------------------------------------------------------
-  gross_leverage:
-    min                                                                  150.10%
-    max                                                                  326.40%
-    avg                                                                  214.20%
-    std                                                                   36.50%
-  long_leverage:
-    min                                                                   11.70%
-    max                                                                  157.00%
-    avg                                                                   86.90%
-    std                                                                   37.00%
-  short_leverage:
-    min                                                                   39.00%
-    max                                                                  251.40%
-    avg                                                                  127.20%
-    std                                                                   42.00%
-
---------------------------------------------------------------------------------
-                            DAILY P&L DECOMPOSITION                             
+                               P&L DECOMPOSITION                                
 --------------------------------------------------------------------------------
   cumulative_pnl_in_dollars:
     price_pnl                                                          12,081.99
@@ -179,6 +183,5 @@
     max                                                                    0.913
     avg                                                                    0.254
     std                                                                    0.421
-  avg_net_exposure_pct_of_equity                                         -40.31%
 
 --------------------------------------------------------------------------------

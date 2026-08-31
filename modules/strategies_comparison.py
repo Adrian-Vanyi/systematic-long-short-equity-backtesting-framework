@@ -487,7 +487,7 @@ def run_one_backtest(
         kpis = kpi_mod.compute_backtest_kpis(backtest_results = results, rf_daily_returns = data.rf_daily_returns)
 
         cause = kpis.backtest_duration["cause_of_backtest_termination"]
-        n_days = int(kpis.backtest_duration["number_of_backtest_days"])
+        n_days = int(kpis.backtest_duration["number_of_backtest_dates"])
         total_return = float(kpis.backtest_PnL["unrealized_return_of_equity"])
         target_hit = cause == "hit_return_target_for_strategy"
 
@@ -623,8 +623,15 @@ def compute_sharpe_ratio(
             equity_excess_returns = excess_return,
             spy_daily_returns = data.daily_spy_returns,
             rf_daily_returns = rf_daily_returns,
-            book_at_date = book_at_date,
         )
+
+        daily_net_exposure = pd.Series(
+            {
+                date: book.close.net_leverage
+                for date, book in book_at_date.items()
+                if book.close.equity != 0
+            }
+        ).sort_index()
 
         def _or_nan(value):
             return "nan" if value is None else value
@@ -654,15 +661,12 @@ def compute_sharpe_ratio(
             alpha_annualized = _or_nan(exposure["alpha_annualized"]),
             t_stat_alpha_hac = _or_nan(exposure["t_stat_alpha_hac"]),
             r_squared = _or_nan(exposure["r_squared"]),
-            avg_net_exposure = _or_nan(exposure["avg_net_exposure_pct_of_equity"]),
+            avg_net_exposure = _or_nan(
+                round(float(daily_net_exposure.mean()), 4)
+                if len(daily_net_exposure) else None
+            ),
             daily_equity_curve = eq_at_backtest_dates,
-            daily_net_exposure = pd.Series(
-                {
-                    date: book.close.long_leverage - book.close.short_leverage
-                    for date, book in book_at_date.items()
-                    if book.close.equity != 0
-                }
-            ).sort_index()
+            daily_net_exposure = daily_net_exposure
         )
     
     except Exception as exc:

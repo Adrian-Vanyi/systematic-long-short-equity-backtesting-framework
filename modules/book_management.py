@@ -100,6 +100,7 @@ class BookSnapshot:
     long_leverage: float = 0.0
     short_leverage: float = 0.0
     gross_leverage: float = 0.0
+    net_leverage: float = 0.0
     equity: float = 0.0
     equity_excluding_margin_collateral: float = 0.0
 
@@ -135,13 +136,15 @@ class BookSnapshot:
         )
 
     def update_leverage_ratios(self) -> None:
-        """Recompute `long_leverage`, `short_leverage`, and `gross_leverage` from the current scalar fields."""
+        """Recompute `long_leverage`, `short_leverage`, `gross_leverage`, and `net_leverage` from the current scalar fields."""
         if self.equity != 0:
             self.long_leverage = self.LMV / self.equity
             self.short_leverage = self.SMV / self.equity
             self.gross_leverage = (self.LMV + self.SMV) / self.equity
+            self.net_leverage = (self.LMV - self.SMV) / self.equity
         else:
-            self.long_leverage = self.short_leverage = self.gross_leverage = 0.0
+            self.long_leverage = self.short_leverage = 0.0
+            self.gross_leverage = self.net_leverage = 0.0
     
 
 @dataclass
@@ -792,6 +795,7 @@ def round_snapshot_for_display(snapshot: BookSnapshot) -> BookSnapshot:
     rounded.long_leverage = round(rounded.long_leverage, 4)
     rounded.short_leverage = round(rounded.short_leverage, 4)
     rounded.gross_leverage = round(rounded.gross_leverage, 4)
+    rounded.net_leverage = round(rounded.net_leverage, 4)
     rounded.short_proceeds_lots = {
         ticker: deque((n, round(p, 2)) for n, p in lots)
         for ticker, lots in rounded.short_proceeds_lots.items()

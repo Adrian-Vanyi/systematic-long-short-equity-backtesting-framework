@@ -176,7 +176,7 @@ def _duration_section(
     else:
         cause = "unknown. Check code."
     return {
-        "number_of_backtest_days": len(backtest_dates),
+        "number_of_backtest_dates": len(backtest_dates),
         "first_backtest_date": backtest_dates[0].strftime("%Y-%m-%d"),
         "last_backtest_date": last.strftime("%Y-%m-%d"),
         "cause_of_backtest_termination": cause,
@@ -228,7 +228,6 @@ def _performance_between_backtest_dates_section(
     std = excess_return.std(ddof=1) if len(excess_return) > 1 else float("nan")
 
     section = {
-        "number_of_backtest_dates": len(backtest_dates),
         "avg_excess_return_between_backtest_dates": _safe_round(avg, 4),
         "std_of_excess_returns_between_backtest_dates": _safe_round(std, 4),
         "min_excess_return_between_backtest_dates": _safe_round(excess_return.min(), 4) if not excess_return.empty else None,
@@ -325,12 +324,12 @@ def _margin_section(
     maint_freq, maint_n, reb_freq, reb_n = _mr_violation_stats(
         backtest_dates, date_events, rebalance_dates)
     return {
-        "maint_MR_violation_number_of_backtest_days": maint_n,
+        "maint_MR_violation_number_of_backtest_dates": maint_n,
         "maint_MR_violation_frequency": round(maint_freq, 4),
-        "rebalance_MR_cure_number_of_backtest_days": reb_n,
+        "rebalance_MR_cure_number_of_rebalance_dates": reb_n,
         "rebalance_MR_cure_frequency": round(reb_freq, 4),
         "cure_method": cure_method,
-        "shrink_factor_to_cure_an_MR_violation": _summary_stats(list(shrink_factors.values())) if shrink_factors else None,
+        "shrink_factor_per_cure": _summary_stats(list(shrink_factors.values()), decimals=4) if shrink_factors else None,
         "collateral_per_cure":  _summary_stats(list(posted_collateral.values()), decimals=2) if posted_collateral else None,
         "total_collateral_posted":  round(float(np.sum(list(posted_collateral.values()))), 2) if posted_collateral else None
     }
@@ -338,13 +337,13 @@ def _margin_section(
 
 def _accruals_section(financing_accruals: dict, dividend_accruals: dict) -> dict:
     return {
-        "dividends_per_trading_date": _summary_stats(list(dividend_accruals.values()), decimals=2),
-        "financing_costs_per_trading_date": _summary_stats(list(financing_accruals.values()), decimals=2),
+        "dividend_pnl_per_backtest_date": _summary_stats(list(dividend_accruals.values()), decimals=2),
+        "financing_pnl_per_backtest_date": _summary_stats(list(financing_accruals.values()), decimals=2),
     }
 
 
 def _leverage_section(book_at_date: dict[pd.Timestamp, Book]) -> dict:
-    gross, long, short = [], [], []
+    gross, long, short, net = [], [], [], []
     for date, book in book_at_date.items():
         close = book.close
         if close.equity == 0:
@@ -352,10 +351,12 @@ def _leverage_section(book_at_date: dict[pd.Timestamp, Book]) -> dict:
         gross.append(close.gross_leverage)
         long.append(close.long_leverage)
         short.append(close.short_leverage)
+        net.append(close.net_leverage)
     return {
-        "gross_leverage": _summary_stats(gross, decimals=3),
-        "long_leverage": _summary_stats(long, decimals=3),
-        "short_leverage": _summary_stats(short, decimals=3)
+        "gross_leverage": _summary_stats(gross, decimals=4),
+        "long_leverage": _summary_stats(long, decimals=4),
+        "short_leverage": _summary_stats(short, decimals=4),
+        "net_leverage": _summary_stats(net, decimals=4)
     }
 
 
@@ -533,7 +534,6 @@ def compute_market_exposure(
     equity_excess_returns: pd.Series,
     spy_daily_returns: pd.Series,
     rf_daily_returns: pd.Series,
-    book_at_date: dict[pd.Timestamp, Book] | None = None,
     hac_lags: int = 5,
     rolling_window: int = 60,
 ) -> tuple[dict, pd.Series, pd.Series]:
@@ -544,22 +544,15 @@ def compute_market_exposure(
     The market proxy must be a total-return series (dividend-adjusted
     close).
 
-    (`book_at_date` is optional so that the regression can be recomputed offline from a persisted equity curve).
+    The function needs no book: it depends only on the realised return
+    series, so the regression can be recomputed offline from a persisted
+    equity curve.
 
     Returns
     -------
     (section_dict, rolling_beta_series)
     """
-    if book_at_date is None:
-        avg_net = None
-    else:
-        net_exposure = [
-            book.close.long_leverage - book.close.short_leverage
-            for book in book_at_date.values()
-            if book.close.equity != 0
-        ]
-        avg_net = float(np.mean(net_exposure)) if net_exposure else None
-
+    
     df = pd.concat(
         {
             "equity_excess": _align_index(equity_excess_returns),
@@ -601,7 +594,6 @@ def compute_market_exposure(
             "hac_lags_for_standard_errors": hac_lags,
             "rolling_beta_window_in_trading_days": rolling_window,
             "rolling_beta": _summary_stats([]),
-            "avg_net_exposure_pct_of_equity": _safe_round(avg_net, 4),
         }
         return (
             section,
@@ -651,7 +643,6 @@ def compute_market_exposure(
         "hac_lags_for_standard_errors": hac_lags,
         "rolling_beta_window_in_trading_days": rolling_window,
         "rolling_beta": _summary_stats(rolling_beta.values, decimals=3),
-        "avg_net_exposure_pct_of_equity": _safe_round(avg_net, 4),
     }
     return section, rolling_beta, rolling_se
 
@@ -687,8 +678,8 @@ class BacktestKPIs:
         sections = (
             self.strategy, self.backtest_duration, self.backtest_PnL,
             self.perf_between_backtest_dates, self.performance_per_period,
-            self.drawdown_metrics, self.trading, self.margin, self.accruals,
-            self.leverage, self.pnl_decomposition, self.market_exposure,
+            self.drawdown_metrics, self.leverage, self.margin, self.trading,
+            self.accruals, self.pnl_decomposition, self.market_exposure,
         )
         for section in sections:
             if section is None:
@@ -801,7 +792,7 @@ def compute_backtest_kpis(
         from `download_market_returns`). When provided, the MARKET
         EXPOSURE section is computed; when omitted it is skipped.
     close_prices
-        Optional close prices indexed by (date, ticker). When provided, the DAILY P&L
+        Optional close prices indexed by (date, ticker). When provided, the P&L
         DECOMPOSITION section is computed and the §2.6.6 identity is
         asserted; when omitted the section is skipped.
     """
@@ -858,7 +849,6 @@ def compute_backtest_kpis(
             returns_between_df["equity_excess_return_since_previous_backtest_date"],
             market_daily_returns,
             rf_daily_returns,
-            book_at_date,
         )
     else:
         market_exposure = None
@@ -913,24 +903,22 @@ _KEY_FORMATS: dict[str, str] = {
     "std_of_excess_returns_between_backtest_dates":  "{:.2%}",
     "max_excess_return_between_backtest_dates": "{:.2%}",
     "min_excess_return_between_backtest_dates": "{:.2%}",
-    "volatility_of_excess_return_between_backtest_dates": "{:.2%}",
     "avg_period_excess_return": "{:.2%}",
     "std_of_period_excess_return": "{:.2%}",
     "max_period_excess_return": "{:.2%}",
     "min_period_excess_return": "{:.2%}",
-    "volatility_of_the_period_excess_return": "{:.2%}",
     "drawdown of equity-excluding-margin-collateral": "{:.2%}",
     "turnover": "{:.2%}",
-    "max_pct_of_daily_market_volume": "{:.2}%",
+    "max_pct_of_daily_market_volume": "{:.2f}%",
     "maint_MR_violation_frequency": "{:.2%}",
     "rebalance_MR_cure_frequency": "{:.2%}",
-    "shrink_factor_to_cure_an_MR_violation": "{:.2%}",
+    "shrink_factor_per_cure": "{:.2%}",
     "gross_leverage": "{:.2%}",
     "long_leverage": "{:.2%}",
     "short_leverage": "{:.2%}",
+    "net_leverage": "{:.2%}",
     "alpha_annualized": "{:.2%}",
     "alpha_annualized_95pct_confidence_interval_hac": "{:.2%}",
-    "avg_net_exposure_pct_of_equity": "{:.2%}",
     "cumulative_pnl_as_pct_of_initial_equity": "{:.2%}",
     # Market-exposure regression outputs
     "beta": "{:.3f}",
@@ -952,8 +940,8 @@ _KEY_FORMATS: dict[str, str] = {
     "total_trading_fees_paid_in_backtest": "{:,.2f}",
     "total_execution_cost_paid_in_backtest": "{:,.2f}",
     "total_gross_notional_traded_in_backtest": "{:,.2f}",
-    "dividends_per_trading_date": "{:,.2f}",
-    "financing_costs_per_trading_date": "{:,.2f}",
+    "dividend_pnl_per_backtest_date": "{:,.2f}",
+    "financing_pnl_per_backtest_date": "{:,.2f}",
     "collateral_per_cure": "{:,.2f}",
     "total_collateral_posted": "{:,.2f}",
     "cumulative_pnl_in_dollars": "{:,.2f}",
@@ -1012,12 +1000,12 @@ def _build_kpi_summary(kpis: BacktestKPIs) -> str:
     _section("PERFORMANCE PER INTER-REBALANCE PERIOD",
              kpis.performance_per_period)
     _section("DRAWDOWNS", kpis.drawdown_metrics)
-    _section("TRADING", kpis.trading)
-    _section("MARGIN REQUIREMENTS", kpis.margin)
-    _section("ACCRUALS", kpis.accruals)
     _section("LEVERAGE", kpis.leverage)
+    _section("MARGIN REQUIREMENTS", kpis.margin)
+    _section("TRADING", kpis.trading)
+    _section("ACCRUALS", kpis.accruals)
     if kpis.pnl_decomposition is not None:
-        _section("DAILY P&L DECOMPOSITION", kpis.pnl_decomposition)
+        _section("P&L DECOMPOSITION", kpis.pnl_decomposition)
     if kpis.market_exposure is not None:
         _section("MARKET EXPOSURE", kpis.market_exposure)
     lines.append("")

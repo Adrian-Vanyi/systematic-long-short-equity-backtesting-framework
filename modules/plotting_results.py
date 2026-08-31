@@ -72,11 +72,18 @@ class LeveragePanelConfig:
     show_gross: bool = False
     show_long: bool = False
     show_short: bool = False
+    show_net: bool = False
 
     @property
     def any_shown(self) -> bool:
-        return self.show_all or self.show_gross or self.show_long or self.show_short
+        return (
+            self.show_all or self.show_gross or self.show_long
+            or self.show_short or self.show_net
+        )
 
+    @property
+    def net_shown(self) -> bool:
+        return self.show_all or self.show_net
 
 @dataclass
 class PlotConfig:
@@ -84,7 +91,7 @@ class PlotConfig:
 
     Three optional panels stacked top to bottom:
       1. Main (equity, LMV/SMV, cash/debit, etc.): when `main_panel` has any flags set.
-      2. Leverage (gross/long/short ratios): when `leverage_panel.any_shown`.
+      2. Leverage (gross/long/short/net ratios): when `leverage_panel.any_shown`.
       3. Drawdowns: when `show_drawdowns=True`.
     """
     plot_start_date: pd.Timestamp
@@ -384,6 +391,12 @@ def _build_leverage_panel_specs(cfg: LeveragePanelConfig) -> list[_PlotSeries]:
             linewidth=1.2,
             getter=lambda snap: snap.SMV / snap.equity if snap.equity else 0.0
         ))
+    if cfg.net_shown:
+        specs.append(_PlotSeries(
+            "net_leverage", "green", "net leverage",
+            linewidth=1.2,
+            getter=lambda snap: snap.net_leverage,
+        ))
     return specs
 
 
@@ -533,7 +546,9 @@ def plot_book_values(
             ax, rebalance_dates_in_window,
             first_backtest_date, last_backtest_date,
             date_events,
-            horizontal_baselines=(1.0,),
+            horizontal_baselines=(
+                (1.0, 0.0) if config.leverage_panel.net_shown else (1.0,)
+            ),
         )
         ax.set_ylabel("Leverage ratio")
         ax.legend(loc="best")

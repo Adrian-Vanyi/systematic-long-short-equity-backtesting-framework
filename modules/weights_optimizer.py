@@ -136,7 +136,7 @@ def optimize_weights(
     objective: Objective = "max_return",
     ptf_variance_cap: float | None = None,
     ptf_return_lower_bound: float | None = None,
-    ptf_beta_cap: float = 0.01,
+    ptf_beta_cap: float = 0.001,
     ptf_net_exposure_cap: float = 0.001,
     ptf_gross_exposure_cap: float = 4.0,
     w_min: float | None = None,
